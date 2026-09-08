@@ -1,5 +1,6 @@
 ﻿namespace KeelMatrix.EfGuard.Tests;
 
+[Collection("Extraction")]
 public sealed class ExtractionFixtureTests
 {
     [Theory]
