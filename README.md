@@ -112,10 +112,11 @@ Install from the configured package source, then invoke the CLI directly:
 ```bash
 dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0 --add-source https://api.nuget.org/v3/index.json
 efguard check --baseline origin/main --format json > efguard-report.json
-test $? -ne 2
+status=$?
+test $status -eq 0
 ```
 
-On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. Do not make a CI job treat exit `2` as clean.
+On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. A gating job should fail for either non-zero exit code.
 
 ## Telemetry and privacy
 
