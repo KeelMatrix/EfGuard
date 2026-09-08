@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>KeelMatrix.EfGuard</AssemblyName>
+    <RootNamespace>KeelMatrix.EfGuard</RootNamespace>
+    <PackageId>KeelMatrix.EfGuard</PackageId>
+    <Description>Detect EF Core migrations that can break rolling deployments, lose data, or block production traffic, and explain a safer rollout before merge.</Description>
+    <PackageTags>ef-core;entity-framework;database-migrations;zero-downtime;rolling-deployment;ci;sql-server;postgresql;dotnet-tool</PackageTags>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>efguard</ToolCommandName>
+    <PackageOutputPath>$(MSBuildProjectDirectory)\..\..\artifacts</PackageOutputPath>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="KeelMatrix.Telemetry" />
+    <ProjectReference Include="..\KeelMatrix.EfGuard.Worker\KeelMatrix.EfGuard.Worker.csproj" ReferenceOutputAssembly="false" />
+    <None Include="$(MSBuildProjectDirectory)\..\..\README.md" Pack="true" PackagePath="README.md" />
+    <None Include="$(MSBuildProjectDirectory)\..\..\LICENSE" Pack="true" PackagePath="LICENSE" />
+    <None Include="$(MSBuildProjectDirectory)\..\..\icon.png" Pack="true" PackagePath="icon.png" />
+  </ItemGroup>
+
+  <Target Name="IncludeEfGuardWorker" BeforeTargets="_GetPackageFiles">
+    <ItemGroup>
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net8.0\KeelMatrix.EfGuard.Worker.dll" Pack="true" PackagePath="tools\net8.0\any" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net8.0\KeelMatrix.EfGuard.Worker.deps.json" Pack="true" PackagePath="tools\net8.0\any" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net8.0\KeelMatrix.EfGuard.Worker.runtimeconfig.json" Pack="true" PackagePath="tools\net8.0\any" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.dll" Pack="true" PackagePath="tools\net10.0\any" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.deps.json" Pack="true" PackagePath="tools\net10.0\any" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.runtimeconfig.json" Pack="true" PackagePath="tools\net10.0\any" />
+    </ItemGroup>
+  </Target>
+</Project>

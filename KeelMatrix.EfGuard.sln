@@ -1,0 +1,30 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeelMatrix.EfGuard", "src\KeelMatrix.EfGuard\KeelMatrix.EfGuard.csproj", "{2D62C8CC-8E35-44F6-B4A8-6D4AF6A0F57A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeelMatrix.EfGuard.Worker", "src\KeelMatrix.EfGuard.Worker\KeelMatrix.EfGuard.Worker.csproj", "{B0BA1D7E-0C3A-4C36-B4B8-4D5BD7EE7114}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KeelMatrix.EfGuard.Tests", "tests\KeelMatrix.EfGuard.Tests\KeelMatrix.EfGuard.Tests.csproj", "{4C6CC756-C2BE-42F8-8FE4-25E2E9B48D2E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2D62C8CC-8E35-44F6-B4A8-6D4AF6A0F57A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D62C8CC-8E35-44F6-B4A8-6D4AF6A0F57A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D62C8CC-8E35-44F6-B4A8-6D4AF6A0F57A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D62C8CC-8E35-44F6-B4A8-6D4AF6A0F57A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0BA1D7E-0C3A-4C36-B4B8-4D5BD7EE7114}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0BA1D7E-0C3A-4C36-B4B8-4D5BD7EE7114}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0BA1D7E-0C3A-4C36-B4B8-4D5BD7EE7114}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0BA1D7E-0C3A-4C36-B4B8-4D5BD7EE7114}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C6CC756-C2BE-42F8-8FE4-25E2E9B48D2E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C6CC756-C2BE-42F8-8FE4-25E2E9B48D2E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C6CC756-C2BE-42F8-8FE4-25E2E9B48D2E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C6CC756-C2BE-42F8-8FE4-25E2E9B48D2E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

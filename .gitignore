@@ -1,0 +1,15 @@
+bin/
+obj/
+artifacts/
+.vs/
+.vscode/
+.idea/
+TestResults/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.zip
+keelmatrix.telemetry.json
+.env
+.env.local
