@@ -7,20 +7,41 @@
     <PackageId>KeelMatrix.EfGuard</PackageId>
     <Description>Detect EF Core migrations that can break rolling deployments, lose data, or block production traffic, and explain a safer rollout before merge.</Description>
     <PackageTags>ef-core;entity-framework;database-migrations;zero-downtime;rolling-deployment;ci;sql-server;postgresql;dotnet-tool</PackageTags>
+    <Authors>KeelMatrix</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/KeelMatrix/EfGuard#readme</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>efguard</ToolCommandName>
     <PackageOutputPath>$(MSBuildProjectDirectory)\..\..\artifacts</PackageOutputPath>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <NoWarn>$(NoWarn);CS1591;NU5128</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="KeelMatrix.Telemetry" />
-    <ProjectReference Include="..\KeelMatrix.EfGuard.Worker\KeelMatrix.EfGuard.Worker.csproj" ReferenceOutputAssembly="false" />
-    <None Include="$(MSBuildProjectDirectory)\..\..\README.md" Pack="true" PackagePath="README.md" />
-    <None Include="$(MSBuildProjectDirectory)\..\..\LICENSE" Pack="true" PackagePath="LICENSE" />
-    <None Include="$(MSBuildProjectDirectory)\..\..\icon.png" Pack="true" PackagePath="icon.png" />
+    <None Include="$(MSBuildProjectDirectory)\..\..\README.md" Pack="true" PackagePath="" Link="README.md" />
+    <None Include="$(MSBuildProjectDirectory)\..\..\LICENSE" Pack="true" PackagePath="" Link="LICENSE" />
+    <None Include="$(MSBuildProjectDirectory)\..\..\icon.png" Pack="true" PackagePath="" Link="icon.png" />
   </ItemGroup>
+
+  <Target Name="BuildEfGuardWorker" BeforeTargets="Build">
+    <MSBuild Projects="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\KeelMatrix.EfGuard.Worker.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)"
+             BuildInParallel="true" />
+  </Target>
+
+  <Target Name="EnableEfGuardPackageDependencies"
+          BeforeTargets="_GetFrameworksWithSuppressedDependencies"
+          Condition="'$(PackAsTool)' == 'true'">
+    <PropertyGroup>
+      <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
+    </PropertyGroup>
+  </Target>
 
   <Target Name="IncludeEfGuardWorker" BeforeTargets="_GetPackageFiles">
     <ItemGroup>

@@ -15,7 +15,7 @@
     <TreatWarningsAsErrors Condition="'$(Configuration)' == 'Release'">true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CA1305</NoWarn>
-    <DebugType>embedded</DebugType>
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <RepositoryUrl>https://github.com/KeelMatrix/EfGuard</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
