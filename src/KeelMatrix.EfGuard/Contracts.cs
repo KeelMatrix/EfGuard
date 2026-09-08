@@ -1,6 +1,4 @@
-using System.Text.Json.Serialization;
-
-namespace KeelMatrix.EfGuard;
+﻿namespace KeelMatrix.EfGuard;
 
 internal sealed class ExtractionRequest
 {
@@ -93,9 +91,7 @@ internal sealed class Diagnostic
     public string RuleId { get; set; } = "";
     public string Title { get; set; } = "";
     public List<string> RiskDimensions { get; set; } = [];
-    [JsonConverter(typeof(JsonStringEnumConverter))]
     public FindingSeverity Severity { get; set; }
-    [JsonConverter(typeof(JsonStringEnumConverter))]
     public FindingConfidence Confidence { get; set; }
     public string? Provider { get; set; }
     public string? Migration { get; set; }

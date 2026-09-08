@@ -1,4 +1,4 @@
-namespace KeelMatrix.EfGuard;
+﻿namespace KeelMatrix.EfGuard;
 
 internal static class Analyzer
 {
@@ -43,6 +43,9 @@ internal static class Analyzer
             {
                 if (config.RuleSeverities.TryGetValue(finding.RuleId, out FindingSeverity configured))
                     finding.Severity = configured;
+
+                if (config.DisabledRules.Contains(finding.RuleId))
+                    finding.Suppressed = true;
 
                 Suppression? suppression = config.Suppressions.FirstOrDefault(s =>
                     s.Rule.Equals(finding.RuleId, StringComparison.OrdinalIgnoreCase)
@@ -195,13 +198,37 @@ internal static class Analyzer
 
     private static Diagnostic Create(string ruleId, string title, FindingSeverity severity, FindingConfidence confidence,
         List<string> risks, string? provider, string? migration, string? location, string explanation, string remediation, string uncertainty)
-        => new() { RuleId = ruleId, Title = title, Severity = severity, Confidence = confidence, RiskDimensions = risks, Provider = provider, Migration = migration, Location = location, Explanation = explanation, Remediation = remediation, Uncertainty = uncertainty };
+        => new()
+        {
+            RuleId = ruleId,
+            Title = title,
+            Severity = severity,
+            Confidence = confidence,
+            RiskDimensions = risks,
+            Provider = provider,
+            Migration = migration,
+            Location = location,
+            AffectedState = ruleId == "EFG101" ? "The baseline model and target migration are incompatible during overlap." : null,
+            Explanation = explanation,
+            Remediation = remediation,
+            Uncertainty = uncertainty
+        };
 
     private static bool ContainsTable(ModelSnapshot snapshot, string? schema, string? table)
-        => table is not null && snapshot.Tables.Any(t => Same(t.Name, table) && Same(t.Schema, schema));
+        => table is not null && snapshot.Tables.Any(t => SameTable(t.Name, table!) && Same(t.Schema, schema));
 
     private static bool ContainsColumn(ModelSnapshot snapshot, string? schema, string? table, string? column)
-        => column is not null && snapshot.Tables.Any(t => Same(t.Name, table) && Same(t.Schema, schema) && t.Columns.Any(c => Same(c.Name, column)));
+        => column is not null && snapshot.Tables.Any(t => SameTable(t.Name, table!) && Same(t.Schema, schema) && t.Columns.Any(c => Same(c.Name, column)));
+
+    private static bool SameTable(string left, string right)
+    {
+        if (Same(left, right))
+            return true;
+
+        string shortName = left.Contains('.', StringComparison.Ordinal) ? left[(left.LastIndexOf('.') + 1)..] : left;
+        string singularRight = right.EndsWith('s') ? right[..^1] : right;
+        return Same(shortName, right) || Same(shortName, singularRight);
+    }
 
     private static bool Same(string? left, string? right)
         => string.Equals(left ?? "", right ?? "", StringComparison.OrdinalIgnoreCase);

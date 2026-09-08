@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
@@ -40,6 +40,7 @@ internal static class Program
 
     private static async Task<ExtractionResult> ExtractAsync(ExtractionRequest request)
     {
+        string stage = "validate";
         if (!File.Exists(request.ProjectPath) || !request.ProjectPath.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             return Failure("The selected EF project does not exist.");
 
@@ -47,15 +48,19 @@ internal static class Program
         string startupOutput = Path.Combine(request.OutputDirectory, "startup");
         Directory.CreateDirectory(projectOutput);
         Directory.CreateDirectory(startupOutput);
+        stage = "build-project";
         if (!await BuildAsync(request.ProjectPath, projectOutput, Path.Combine(request.OutputDirectory, "project-obj")).ConfigureAwait(false))
             return Failure("The selected EF project could not be built.");
+        stage = "build-startup";
         if (!Path.GetFullPath(request.StartupProjectPath).Equals(Path.GetFullPath(request.ProjectPath), StringComparison.OrdinalIgnoreCase)
             && !await BuildAsync(request.StartupProjectPath, startupOutput, Path.Combine(request.OutputDirectory, "startup-obj")).ConfigureAwait(false))
             return Failure("The selected startup project could not be built.");
 
+        stage = "load-assemblies";
         string[] probingPaths = [projectOutput, startupOutput];
-        AssemblyLoadContext.Default.Resolving += (_, name) => ResolveAssembly(name, probingPaths);
-        List<Assembly> assemblies = LoadAssemblies(probingPaths);
+        TargetLoadContext targetLoadContext = new(probingPaths);
+        targetLoadContext.Resolving += (_, name) => ResolveAssembly(name, probingPaths, targetLoadContext);
+        List<Assembly> assemblies = LoadAssemblies(probingPaths, targetLoadContext);
         Reflection.SetAssemblies(assemblies);
         List<Type> contextTypes = assemblies.SelectMany(SafeGetTypes).Where(IsDbContext).Distinct().ToList();
         if (request.ContextName is not null)
@@ -66,20 +71,28 @@ internal static class Program
             return Failure("More than one DbContext was found; specify --context.");
 
         Type contextType = contextTypes[0];
-        object? context = CreateContext(contextType, assemblies);
+        stage = "create-context";
+        object? context;
+        try { context = CreateContext(contextType, assemblies); }
+        catch (InvalidOperationException exception) { return Failure(exception.Message); }
+        catch { return Failure("The DbContext could not be created during design-time extraction."); }
         if (context is null)
             return Failure("The DbContext could not be created by the project's design-time factory or default constructor.");
 
         try
         {
+            stage = "read-provider";
             string? provider = ReadProvider(context);
             bool supported = provider?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true
                 || provider?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
             if (string.IsNullOrWhiteSpace(provider))
                 return Failure("The EF provider could not be identified.");
 
+            stage = "read-model";
             ModelSnapshot model = ReadModel(context);
+            stage = "read-migrations";
             List<NormalizedOperation> operations = ReadMigrations(assemblies, provider);
+            stage = "generate-provider-sql";
             bool providerSqlGenerated = TryGenerateProviderSql(context);
             return new ExtractionResult
             {
@@ -92,6 +105,7 @@ internal static class Program
                 Operations = operations
             };
         }
+        catch { return Failure("The EF extraction worker failed during " + stage + "."); }
         finally
         {
             if (context is IDisposable disposable)
@@ -193,28 +207,31 @@ internal static class Program
         IEnumerable<Type> migrationTypes = assemblies.SelectMany(SafeGetTypes).Where(type => !type.IsAbstract && IsMigration(type)).OrderBy(MigrationId, StringComparer.Ordinal);
         foreach (Type migrationType in migrationTypes)
         {
-            object? migration = Activator.CreateInstance(migrationType);
-            if (migration is null)
-                continue;
-            string migrationId = MigrationId(migrationType) ?? migrationType.Name;
-            Type? builderType = migrationType.Assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder")
-                ?? assemblies.Select(a => a.GetType("Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder")).FirstOrDefault(t => t is not null);
-            if (builderType is null)
-                continue;
-            object builder = Activator.CreateInstance(builderType, provider) ?? throw new InvalidOperationException();
-            MethodInfo? up = migrationType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(m => m.Name == "Up" && m.GetParameters().Length == 1);
-            if (up is null)
-                continue;
-            try { up.Invoke(migration, [builder]); }
-            catch { result.Add(new NormalizedOperation { Kind = "custom-operation", Migration = migrationId }); continue; }
-            object? operations = builderType.GetProperty("Operations")?.GetValue(builder);
-            if (operations is not System.Collections.IEnumerable enumerable)
-                continue;
-            foreach (object operation in enumerable.Cast<object>())
+            try
             {
-                NormalizedOperation normalized = Normalize(operation, migrationId);
-                result.Add(normalized);
+                object? migration = Activator.CreateInstance(migrationType);
+                if (migration is null)
+                    continue;
+                string migrationId = MigrationId(migrationType) ?? migrationType.Name;
+                Type? builderType = migrationType.Assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder")
+                    ?? assemblies.Select(a => a.GetType("Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder")).FirstOrDefault(t => t is not null);
+                if (builderType is null)
+                    continue;
+                object builder = Activator.CreateInstance(builderType, provider) ?? throw new InvalidOperationException();
+                MethodInfo? up = migrationType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .FirstOrDefault(m => m.Name == "Up" && m.GetParameters().Length == 1);
+                if (up is null)
+                    continue;
+                up.Invoke(migration, [builder]);
+                object? operations = builderType.GetProperty("Operations")?.GetValue(builder);
+                if (operations is not System.Collections.IEnumerable enumerable)
+                    continue;
+                foreach (object operation in enumerable.Cast<object>())
+                    result.Add(Normalize(operation, migrationId));
+            }
+            catch
+            {
+                result.Add(new NormalizedOperation { Kind = "custom-operation", Migration = MigrationId(migrationType) ?? migrationType.Name });
             }
         }
         return result;
@@ -316,11 +333,17 @@ internal static class Program
                 object? factory = Activator.CreateInstance(factoryType);
                 MethodInfo? method = factoryType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FirstOrDefault(m => m.Name == "CreateDbContext" && m.GetParameters().Length == 1);
                 if (factory is not null && method is not null)
-                    return method.Invoke(factory, [Array.Empty<string>()]);
+                {
+                    try { return method.Invoke(factory, [Array.Empty<string>()]); }
+                    catch { throw new InvalidOperationException("The design-time factory failed during extraction."); }
+                }
             }
         }
         ConstructorInfo? constructor = contextType.GetConstructor(Type.EmptyTypes);
-        return constructor is null ? null : constructor.Invoke(null);
+        if (constructor is null)
+            return null;
+        try { return constructor.Invoke(null); }
+        catch { throw new InvalidOperationException("The DbContext constructor failed during extraction."); }
     }
 
     private static string? ReadProvider(object context)
@@ -334,17 +357,30 @@ internal static class Program
     private static bool IsMigration(Type type) => type.BaseType is not null && (type.BaseType.FullName == MigrationName || IsMigration(type.BaseType));
     private static string? MigrationId(Type type)
     {
-        object? attribute = type.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().FullName?.EndsWith("MigrationAttribute", StringComparison.Ordinal) == true);
-        return attribute?.GetType().GetProperty("Id")?.GetValue(attribute) as string;
+        try
+        {
+            object? attribute = type.GetCustomAttributes(false).FirstOrDefault(a => a.GetType().FullName?.EndsWith("MigrationAttribute", StringComparison.Ordinal) == true);
+            return attribute?.GetType().GetProperty("Id")?.GetValue(attribute) as string;
+        }
+        catch { return null; }
     }
     private static IEnumerable<Type> SafeGetTypes(Assembly assembly) { try { return assembly.GetTypes(); } catch (ReflectionTypeLoadException e) { return e.Types.Where(t => t is not null)!; } catch { return []; } }
-    private static List<Assembly> LoadAssemblies(IEnumerable<string> paths) => paths.SelectMany(path => Directory.Exists(path) ? Directory.EnumerateFiles(path, "*.dll") : []).Select(path => TryLoad(path)).Where(a => a is not null).Cast<Assembly>().Distinct().ToList();
-    private static Assembly? TryLoad(string path) { try { return AssemblyLoadContext.Default.LoadFromAssemblyPath(path); } catch { return null; } }
-    private static Assembly? ResolveAssembly(AssemblyName name, IEnumerable<string> paths) => paths.Select(path => Path.Combine(path, name.Name + ".dll")).Where(File.Exists).Select(TryLoad).FirstOrDefault(a => a is not null);
+    private static List<Assembly> LoadAssemblies(IEnumerable<string> paths, AssemblyLoadContext loadContext) => paths.SelectMany(path => Directory.Exists(path) ? Directory.EnumerateFiles(path, "*.dll") : []).Select(path => TryLoad(path, loadContext)).Where(a => a is not null).Cast<Assembly>().Distinct().ToList();
+    private static Assembly? TryLoad(string path, AssemblyLoadContext loadContext) { try { return loadContext.LoadFromAssemblyPath(path); } catch { return null; } }
+    private static Assembly? ResolveAssembly(AssemblyName name, IEnumerable<string> paths, AssemblyLoadContext loadContext) => paths.Select(path => Path.Combine(path, name.Name + ".dll")).Where(File.Exists).Select(path => TryLoad(path, loadContext)).FirstOrDefault(a => a is not null) ?? AssemblyLoadContext.Default.LoadFromAssemblyName(name);
     private static ExtractionResult Failure(string message) => new() { Success = false, Error = message };
     private static string EnsureTrailingSeparator(string path) => path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
     private static void TryKill(Process process) { try { if (!process.HasExited) process.Kill(true); } catch { } }
     private static async Task WriteResponseAsync(string? path, ExtractionResult result) { if (path is not null) await File.WriteAllTextAsync(path, JsonSerializer.Serialize(result)).ConfigureAwait(false); }
+}
+
+internal sealed class TargetLoadContext(IEnumerable<string> probingPaths) : AssemblyLoadContext("EfGuard.Target", isCollectible: true)
+{
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        string? path = probingPaths.Select(directory => Path.Combine(directory, assemblyName.Name + ".dll")).FirstOrDefault(File.Exists);
+        return path is null ? null : LoadFromAssemblyPath(path);
+    }
 }
 
 internal static class Reflection
@@ -354,10 +390,10 @@ internal static class Reflection
     internal static void SetAssemblies(IReadOnlyList<Assembly> loadedAssemblies) => assemblies = loadedAssemblies;
 
     internal static object? Value(object instance, string name) => instance.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(instance);
-    internal static string? String(object instance, string name) => Value(instance, name)?.ToString();
-    internal static bool Bool(object instance, string name, bool defaultValue = false) => Value(instance, name) is bool value ? value : defaultValue;
-    internal static int? Int(object instance, string name) => Value(instance, name) is int value ? value : null;
-    internal static byte? Byte(object instance, string name) => Value(instance, name) switch { byte value => value, int value when value is >= 0 and <= byte.MaxValue => (byte)value, _ => null };
+    internal static string? String(object instance, string name) => Value(instance, name)?.ToString() ?? InvokeNoArgument(instance, name)?.ToString();
+    internal static bool Bool(object instance, string name, bool defaultValue = false) => Value(instance, name) is bool value ? value : InvokeNoArgument(instance, name) is bool invoked ? invoked : defaultValue;
+    internal static int? Int(object instance, string name) => Value(instance, name) is int value ? value : InvokeNoArgument(instance, name) is int invoked ? invoked : null;
+    internal static byte? Byte(object instance, string name) => Value(instance, name) switch { byte value => value, int value when value is >= 0 and <= byte.MaxValue => (byte)value, _ => InvokeNoArgument(instance, name) switch { byte invoked => invoked, int invoked when invoked is >= 0 and <= byte.MaxValue => (byte)invoked, _ => null } };
     internal static string? TypeName(object instance, string name) => (Value(instance, name) as Type)?.FullName;
 
     internal static IEnumerable<object> Enumerate(object instance, string methodName)
@@ -372,8 +408,18 @@ internal static class Reflection
         if (method is not null)
             return method.Invoke(instance, null);
 
+        foreach (Type interfaceType in instance.GetType().GetInterfaces())
+        {
+            MethodInfo? interfaceMethod = interfaceType.GetMethods().FirstOrDefault(candidate => candidate.Name == methodName && candidate.GetParameters().Length == 0);
+            if (interfaceMethod is not null)
+            {
+                try { return interfaceMethod.Invoke(instance, null); }
+                catch { }
+            }
+        }
+
         foreach (MethodInfo extension in assemblies.SelectMany(assembly =>
-                     assembly.GetTypes().Where(type => type.IsAbstract && type.IsSealed).SelectMany(type => type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)))
+                     GetTypesOrFail(assembly).Where(type => type.IsAbstract && type.IsSealed).SelectMany(type => type.GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)))
                      .Where(candidate => candidate.Name == methodName && candidate.GetParameters().Length == 1))
         {
             ParameterInfo parameter = extension.GetParameters()[0];
@@ -384,6 +430,12 @@ internal static class Reflection
             }
         }
         return null;
+    }
+
+    private static Type[] GetTypesOrFail(Assembly assembly)
+    {
+        try { return assembly.GetTypes(); }
+        catch { throw new InvalidOperationException("EF metadata could not be inspected during extraction."); }
     }
 
     internal static bool AnnotationBool(object instance, string annotationName)

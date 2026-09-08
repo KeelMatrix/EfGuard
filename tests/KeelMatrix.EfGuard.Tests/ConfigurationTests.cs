@@ -1,4 +1,4 @@
-namespace KeelMatrix.EfGuard.Tests;
+﻿namespace KeelMatrix.EfGuard.Tests;
 
 public sealed class ConfigurationTests
 {
@@ -22,6 +22,27 @@ public sealed class ConfigurationTests
     {
         string path = Write("{\"version\":1,\"databaseConnectionString\":\"not-a-secret\"}");
         try { Assert.Throws<InvalidOperationException>(() => ConfigurationLoader.Load(path)); }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void OffRuleIsDisabledRatherThanDowngraded()
+    {
+        string path = Write("{\"version\":1,\"rules\":{\"EFG399\":\"off\"}}");
+        try
+        {
+            GuardConfig config = ConfigurationLoader.Load(path);
+            Report report = Analyzer.Analyze(new ExtractionResult
+            {
+                Success = true,
+                Provider = "Microsoft.EntityFrameworkCore.SqlServer",
+                ProviderSupported = true,
+                Operations = [new NormalizedOperation { Kind = "custom-operation" }]
+            }, null, config, null);
+
+            Assert.Contains(report.Diagnostics, diagnostic => diagnostic.RuleId == "EFG399" && diagnostic.Suppressed);
+            Assert.Equal(0, report.Summary.ExitCode);
+        }
         finally { File.Delete(path); }
     }
 

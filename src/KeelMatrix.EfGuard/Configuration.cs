@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace KeelMatrix.EfGuard;
 
@@ -7,6 +7,7 @@ internal sealed class GuardConfig
     public string Strategy { get; init; } = "rolling";
     public int MinimumCompatibleVersions { get; init; } = 1;
     public Dictionary<string, FindingSeverity> RuleSeverities { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> DisabledRules { get; } = new(StringComparer.OrdinalIgnoreCase);
     public List<Suppression> Suppressions { get; } = [];
 }
 
@@ -59,7 +60,11 @@ internal static class ConfigurationLoader
 
             foreach (JsonProperty rule in rules.EnumerateObject())
             {
-                result.RuleSeverities[rule.Name] = ParseSeverity(rule.Value.GetString());
+                string? value = rule.Value.GetString();
+                if (string.Equals(value, "off", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
+                    result.DisabledRules.Add(rule.Name);
+                else
+                    result.RuleSeverities[rule.Name] = ParseSeverity(value);
             }
         }
 
@@ -120,7 +125,6 @@ internal static class ConfigurationLoader
             "warning" or "high" => FindingSeverity.High,
             "info" or "advisory" => FindingSeverity.Advisory,
             "unverified" => FindingSeverity.Unverified,
-            "off" or "none" => FindingSeverity.Advisory,
             _ => throw new InvalidOperationException("Rule severity must be error, warning, info, unverified, or off.")
         };
     }
