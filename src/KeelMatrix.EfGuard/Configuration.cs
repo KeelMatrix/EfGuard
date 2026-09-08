@@ -144,9 +144,11 @@ internal static class ConfigurationLoader
 
     private static string ReadString(JsonElement element, string name, string defaultValue)
     {
-        return TryGet(element, name, out JsonElement value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString() ?? defaultValue
-            : defaultValue;
+        if (!TryGet(element, name, out JsonElement value))
+            return defaultValue;
+        if (value.ValueKind != JsonValueKind.String)
+            throw new InvalidOperationException($"{name} must be a string.");
+        return value.GetString() ?? defaultValue;
     }
 
     private static string ReadRequiredString(JsonElement element, string name)
@@ -159,9 +161,11 @@ internal static class ConfigurationLoader
 
     private static string? ReadOptionalString(JsonElement element, string name)
     {
-        return TryGet(element, name, out JsonElement value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
+        if (!TryGet(element, name, out JsonElement value) || value.ValueKind == JsonValueKind.Null)
+            return null;
+        if (value.ValueKind != JsonValueKind.String)
+            throw new InvalidOperationException($"{name} must be a string.");
+        return value.GetString();
     }
 
     private static int ReadInt(JsonElement element, string name, int defaultValue)

@@ -46,6 +46,14 @@ public sealed class ConfigurationTests
         finally { File.Delete(path); }
     }
 
+    [Fact]
+    public void MalformedPropertyTypeIsRejected()
+    {
+        string path = Write("{\"version\":1,\"deployment\":{\"strategy\":42}}");
+        try { Assert.Throws<InvalidOperationException>(() => ConfigurationLoader.Load(path)); }
+        finally { File.Delete(path); }
+    }
+
     private static string Write(string text)
     {
         string path = Path.Combine(Path.GetTempPath(), "efguard-test-" + Guid.NewGuid().ToString("N") + ".json");
