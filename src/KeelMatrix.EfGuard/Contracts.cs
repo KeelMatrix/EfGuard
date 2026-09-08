@@ -20,6 +20,21 @@ internal sealed class ExtractionResult
     public string? Context { get; set; }
     public ModelSnapshot Model { get; set; } = new();
     public List<NormalizedOperation> Operations { get; set; } = [];
+    public ProviderSqlEvidence ProviderSql { get; set; } = new();
+}
+
+internal sealed class ProviderSqlEvidence
+{
+    public bool Available { get; set; }
+    public bool EngineVerified { get; set; }
+    public string Source { get; set; } = "migration-operations";
+    public List<ProviderSqlStatement> Statements { get; set; } = [];
+}
+
+internal sealed class ProviderSqlStatement
+{
+    public string? Migration { get; set; }
+    public string Sql { get; set; } = "";
 }
 
 internal sealed class ModelSnapshot
@@ -42,6 +57,7 @@ internal sealed class ModelColumn
     public int? MaxLength { get; set; }
     public byte? Precision { get; set; }
     public byte? Scale { get; set; }
+    public string? Collation { get; set; }
 }
 
 internal sealed class NormalizedOperation
@@ -64,6 +80,8 @@ internal sealed class NormalizedOperation
     public byte? OldPrecision { get; set; }
     public byte? Scale { get; set; }
     public byte? OldScale { get; set; }
+    public string? Collation { get; set; }
+    public string? OldCollation { get; set; }
     public bool IsUnique { get; set; }
     public bool IsConcurrent { get; set; }
     public bool IsOnline { get; set; }
@@ -108,10 +126,23 @@ internal sealed class Report
     public int SchemaVersion { get; set; } = 1;
     public string ToolVersion { get; set; } = "0.1.0";
     public string? Provider { get; set; }
+    public ProviderSqlEvidence ProviderSql { get; set; } = new();
+    public CompatibilityMatrix Compatibility { get; set; } = new();
     public BaselineReport Baseline { get; set; } = new();
     public ReportSummary Summary { get; set; } = new();
     public List<Diagnostic> Diagnostics { get; set; } = [];
     public List<string> Errors { get; set; } = [];
+}
+
+internal sealed class CompatibilityMatrix
+{
+    public string Strategy { get; set; } = "rolling";
+    public int MinimumCompatibleVersions { get; set; } = 1;
+    public bool PreviousApplicationPreviousSchema { get; set; } = true;
+    public bool PreviousApplicationTargetSchema { get; set; } = true;
+    public bool CurrentApplicationPreviousSchema { get; set; } = true;
+    public bool CurrentApplicationTargetSchema { get; set; } = true;
+    public List<string> EvaluatedStates { get; set; } = [];
 }
 
 internal sealed class BaselineReport

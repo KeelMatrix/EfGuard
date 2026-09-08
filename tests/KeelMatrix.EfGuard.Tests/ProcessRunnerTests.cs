@@ -51,11 +51,58 @@ public sealed class ProcessRunnerTests
     }
 
     [Fact]
+    public async Task NonzeroWorkerExitDoesNotTrustItsResponseFile()
+    {
+        string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "Ef8", "Ef8Fixture.csproj"));
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, "MissingContext", CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal("The requested DbContext was not found.", result.Error);
+    }
+
+    [Fact]
+    public async Task NonzeroWorkerExitWithSuccessfulResponseIsRejected()
+    {
+        string responsePath = Path.Combine(Path.GetTempPath(), "efguard-response-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            await File.WriteAllTextAsync(responsePath, "{\"success\":true,\"provider\":\"Microsoft.EntityFrameworkCore.SqlServer\"}");
+            ExtractionResult result = await ExtractionCoordinator.ReadWorkerResponseAsync(
+                new ProcessResult(17, false, false, "", ""), responsePath, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal("EF extraction worker failed.", result.Error);
+        }
+        finally
+        {
+            if (File.Exists(responsePath))
+                File.Delete(responsePath);
+        }
+    }
+
+    [Fact]
     public void BaselinePathDoesNotUseActiveWorktreeAsExtractionDirectory()
     {
         string? root = ExtractionCoordinator.FindRepositoryRoot(Environment.CurrentDirectory);
         Assert.NotNull(root);
         Assert.NotEqual(Path.GetFullPath(root), Path.GetFullPath(Path.GetTempPath()));
+    }
+
+    [Fact]
+    public async Task BaselineExtractionUsesRealGitArchiveWithoutMutatingWorktree()
+    {
+        string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "Ef8", "Ef8Fixture.csproj"));
+        string fixtureSource = Path.Combine(Path.GetDirectoryName(project)!, "Fixture.cs");
+        byte[] before = await File.ReadAllBytesAsync(fixtureSource);
+        string[] tempBefore = Directory.GetDirectories(Path.GetTempPath(), "efguard-baseline-*");
+
+        ExtractionResult? baseline = await ExtractionCoordinator.ExtractBaselineAsync(project, project, null, "HEAD", CancellationToken.None);
+
+        Assert.NotNull(baseline);
+        Assert.True(baseline.Success, baseline.Error);
+        Assert.Equal(before, await File.ReadAllBytesAsync(fixtureSource));
+        Assert.Equal(tempBefore, Directory.GetDirectories(Path.GetTempPath(), "efguard-baseline-*"));
     }
 
     private static Task<ProcessResult> RunProbeAsync(string command, TimeSpan timeout)

@@ -91,15 +91,15 @@ internal static class Program
             stage = "read-model";
             ModelSnapshot model = ReadModel(context);
             stage = "read-migrations";
-            List<NormalizedOperation> operations = ReadMigrations(assemblies, provider);
+            List<NormalizedOperation> operations = ReadMigrations(assemblies, provider, context, out ProviderSqlEvidence providerSql);
             stage = "generate-provider-sql";
-            bool providerSqlGenerated = TryGenerateProviderSql(context);
             return new ExtractionResult
             {
                 Success = true,
                 Provider = provider,
                 ProviderSupported = supported,
-                ProviderSqlGenerated = providerSqlGenerated,
+                ProviderSqlGenerated = providerSql.Available,
+                ProviderSql = providerSql,
                 Context = contextType.FullName,
                 Model = model,
                 Operations = operations
@@ -193,7 +193,8 @@ internal static class Program
                     IsNullable = Reflection.Bool(property, "IsNullable", defaultValue: true),
                     MaxLength = Reflection.Int(property, "GetMaxLength"),
                     Precision = Reflection.Byte(property, "GetPrecision"),
-                    Scale = Reflection.Byte(property, "GetScale")
+                    Scale = Reflection.Byte(property, "GetScale"),
+                    Collation = Reflection.String(property, "GetCollation")
                 });
             }
             result.Tables.Add(modelTable);
@@ -201,9 +202,10 @@ internal static class Program
         return result;
     }
 
-    private static List<NormalizedOperation> ReadMigrations(IEnumerable<Assembly> assemblies, string provider)
+    private static List<NormalizedOperation> ReadMigrations(IEnumerable<Assembly> assemblies, string provider, object context, out ProviderSqlEvidence providerSql)
     {
         List<NormalizedOperation> result = [];
+        List<(string Migration, List<object> Operations)> rawMigrations = [];
         IEnumerable<Type> migrationTypes = assemblies.SelectMany(SafeGetTypes).Where(type => !type.IsAbstract && IsMigration(type)).OrderBy(MigrationId, StringComparer.Ordinal);
         foreach (Type migrationType in migrationTypes)
         {
@@ -226,7 +228,9 @@ internal static class Program
                 object? operations = builderType.GetProperty("Operations")?.GetValue(builder);
                 if (operations is not System.Collections.IEnumerable enumerable)
                     continue;
-                foreach (object operation in enumerable.Cast<object>())
+                List<object> rawOperations = enumerable.Cast<object>().ToList();
+                rawMigrations.Add((migrationId, rawOperations));
+                foreach (object operation in rawOperations)
                     result.Add(Normalize(operation, migrationId));
             }
             catch
@@ -234,6 +238,7 @@ internal static class Program
                 result.Add(new NormalizedOperation { Kind = "custom-operation", Migration = MigrationId(migrationType) ?? migrationType.Name });
             }
         }
+        providerSql = GenerateMigrationSql(context, assemblies, rawMigrations);
         return result;
     }
 
@@ -259,9 +264,9 @@ internal static class Program
         }
         if (type.EndsWith("AlterColumnOperation", StringComparison.Ordinal))
         {
-            result.Kind = "alter-column"; FillTableColumn(result, operation); result.ClrType = Reflection.TypeName(operation, "ClrType"); result.IsNullable = Reflection.Bool(operation, "IsNullable"); result.MaxLength = Reflection.Int(operation, "MaxLength"); result.Precision = Reflection.Byte(operation, "Precision"); result.Scale = Reflection.Byte(operation, "Scale");
+            result.Kind = "alter-column"; FillTableColumn(result, operation); result.ClrType = Reflection.TypeName(operation, "ClrType"); result.IsNullable = Reflection.Bool(operation, "IsNullable"); result.MaxLength = Reflection.Int(operation, "MaxLength"); result.Precision = Reflection.Byte(operation, "Precision"); result.Scale = Reflection.Byte(operation, "Scale"); result.Collation = Reflection.String(operation, "Collation");
             object? old = Reflection.Value(operation, "OldColumn");
-            if (old is not null) { result.OldClrType = Reflection.TypeName(old, "ClrType"); result.OldIsNullable = Reflection.Bool(old, "IsNullable", true); result.OldMaxLength = Reflection.Int(old, "MaxLength"); result.OldPrecision = Reflection.Byte(old, "Precision"); result.OldScale = Reflection.Byte(old, "Scale"); }
+            if (old is not null) { result.OldClrType = Reflection.TypeName(old, "ClrType"); result.OldIsNullable = Reflection.Bool(old, "IsNullable", true); result.OldMaxLength = Reflection.Int(old, "MaxLength"); result.OldPrecision = Reflection.Byte(old, "Precision"); result.OldScale = Reflection.Byte(old, "Scale"); result.OldCollation = Reflection.String(old, "Collation"); }
             return result;
         }
         if (type.EndsWith("AddColumnOperation", StringComparison.Ordinal))
@@ -272,6 +277,10 @@ internal static class Program
         {
             result.Kind = "create-index"; result.Table = Reflection.String(operation, "Table"); result.Schema = Reflection.String(operation, "Schema"); result.IsUnique = Reflection.Bool(operation, "IsUnique"); result.IsConcurrent = Reflection.Bool(operation, "IsConcurrent") || Reflection.AnnotationBool(operation, "Npgsql:CreatedConcurrently"); result.IsOnline = Reflection.Bool(operation, "IsOnline") || Reflection.AnnotationBool(operation, "SqlServer:Online"); return result;
         }
+        if (type.EndsWith("AddUniqueConstraintOperation", StringComparison.Ordinal))
+        {
+            result.Kind = "unique-constraint"; result.Table = Reflection.String(operation, "Table"); result.Schema = Reflection.String(operation, "Schema"); result.IsUnique = true; return result;
+        }
         if (type.EndsWith("AddForeignKeyOperation", StringComparison.Ordinal))
         {
             result.Kind = "add-foreign-key"; result.Table = Reflection.String(operation, "Table"); result.Schema = Reflection.String(operation, "Schema"); result.PrincipalTable = Reflection.String(operation, "PrincipalTable"); return result;
@@ -280,7 +289,7 @@ internal static class Program
         {
             result.SuppressTransaction = Reflection.Bool(operation, "SuppressTransaction");
             string? sql = Reflection.String(operation, "Sql");
-            result.Kind = result.SuppressTransaction ? "sql-suppressed-transaction" : sql is not null && Regex.IsMatch(sql, @"\bUPDATE\b", RegexOptions.IgnoreCase) && !Regex.IsMatch(sql, @"\bWHERE\b", RegexOptions.IgnoreCase) ? "sql-backfill" : "raw-sql";
+            result.Kind = result.SuppressTransaction ? "sql-suppressed-transaction" : ClassifySql(sql);
             result.SqlShape = sql is not null && Regex.IsMatch(sql, @"\bUPDATE\b", RegexOptions.IgnoreCase) ? "update" : "sql";
             return result;
         }
@@ -311,33 +320,99 @@ internal static class Program
         target.Column = Reflection.String(operation, "Name");
     }
 
-    private static bool TryGenerateProviderSql(object context)
+    private static ProviderSqlEvidence GenerateMigrationSql(object context, IEnumerable<Assembly> assemblies, IEnumerable<(string Migration, List<object> Operations)> migrations)
     {
+        ProviderSqlEvidence evidence = new();
         try
         {
-            object? database = context.GetType().GetProperty("Database")?.GetValue(context);
-            MethodInfo? method = database?.GetType().GetMethod("GenerateCreateScript", Type.EmptyTypes);
-            string? script = method?.Invoke(database, null) as string ?? (database is null ? null : Reflection.String(database, "GenerateCreateScript"));
-            return script is not null && script.Length > 0;
+            Type? generatorContract = assemblies.Select(assembly => assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.IMigrationsSqlGenerator"))
+                .FirstOrDefault(type => type is not null);
+            object? services = GetInfrastructureServiceProvider(context);
+            object? generator = generatorContract is null || services is not IServiceProvider serviceProvider ? null : serviceProvider.GetService(generatorContract);
+            MethodInfo? generate = generatorContract?.GetMethods().FirstOrDefault(method => method.Name == "Generate");
+            object? model = context.GetType().GetProperty("Model")?.GetValue(context);
+            if (generator is null || generate is null || model is null)
+                return evidence;
+
+            foreach ((string migration, List<object> operations) in migrations)
+            {
+                try
+                {
+                    object? typedOperations = CreateOperationList(generate.GetParameters()[0].ParameterType, operations);
+                    if (typedOperations is null)
+                        continue;
+                    object?[] arguments = new object?[generate.GetParameters().Length];
+                    arguments[0] = typedOperations;
+                    if (arguments.Length > 1)
+                        arguments[1] = model;
+                    for (int index = 2; index < arguments.Length; index++)
+                        arguments[index] = generate.GetParameters()[index].ParameterType.IsValueType ? Activator.CreateInstance(generate.GetParameters()[index].ParameterType) : null;
+                    object? commands = generate.Invoke(generator, arguments);
+                    if (commands is not System.Collections.IEnumerable enumerable)
+                        continue;
+                    foreach (object command in enumerable.Cast<object>())
+                    {
+                        string? sql = Reflection.String(command, "CommandText") ?? Reflection.String(command, "Text");
+                        if (!string.IsNullOrWhiteSpace(sql))
+                            evidence.Statements.Add(new ProviderSqlStatement { Migration = migration, Sql = sql });
+                    }
+                }
+                catch { }
+            }
+            evidence.Available = evidence.Statements.Count > 0;
         }
-        catch { return false; }
+        catch { }
+        return evidence;
+    }
+
+    private static object? CreateOperationList(Type parameterType, IEnumerable<object> operations)
+    {
+        Type? operationType = parameterType.IsGenericType ? parameterType.GetGenericArguments().FirstOrDefault() : null;
+        if (operationType is null)
+            return null;
+        Type listType = typeof(List<>).MakeGenericType(operationType);
+        if (Activator.CreateInstance(listType) is not System.Collections.IList typedOperations)
+            return null;
+        foreach (object operation in operations)
+            if (operationType.IsInstanceOfType(operation))
+                typedOperations.Add(operation);
+        return typedOperations;
+    }
+
+    private static object? GetInfrastructureServiceProvider(object context)
+    {
+        Type? infrastructure = context.GetType().GetInterfaces().FirstOrDefault(type =>
+            type.IsGenericType
+            && type.GetGenericTypeDefinition().FullName == "Microsoft.EntityFrameworkCore.Infrastructure.IInfrastructure`1"
+            && type.GetGenericArguments()[0] == typeof(IServiceProvider));
+        return infrastructure?.GetProperty("Instance")?.GetValue(context);
+    }
+
+    private static string ClassifySql(string? sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql))
+            return "raw-sql";
+        string withoutComments = Regex.Replace(sql, @"--[^\r\n]*|/\*.*?\*/", " ", RegexOptions.Singleline);
+        string normalized = Regex.Replace(withoutComments, @"'(?:''|[^'])*'", " ", RegexOptions.Singleline);
+        Match update = Regex.Match(normalized, @"\bUPDATE\b", RegexOptions.IgnoreCase);
+        return update.Success && !Regex.IsMatch(normalized[update.Index..], @"\bWHERE\b", RegexOptions.IgnoreCase) ? "sql-backfill" : "raw-sql";
     }
 
     private static object? CreateContext(Type contextType, IEnumerable<Assembly> assemblies)
     {
-        Type? factoryInterface = contextType.GetInterfaces().FirstOrDefault(i => i.FullName?.StartsWith("Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory", StringComparison.Ordinal) == true);
-        if (factoryInterface is not null)
+        Type? factoryType = assemblies.SelectMany(SafeGetTypes)
+            .Where(type => IsFactoryForContext(type, contextType))
+            .OrderBy(type => type.Assembly == contextType.Assembly ? 0 : 1)
+            .ThenBy(type => type.FullName, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (factoryType is not null)
         {
-            Type? factoryType = assemblies.SelectMany(SafeGetTypes).FirstOrDefault(t => !t.IsAbstract && factoryInterface.IsAssignableFrom(t));
-            if (factoryType is not null)
+            object? factory = Activator.CreateInstance(factoryType);
+            MethodInfo? method = factoryType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FirstOrDefault(m => m.Name == "CreateDbContext" && m.GetParameters().Length == 1);
+            if (factory is not null && method is not null)
             {
-                object? factory = Activator.CreateInstance(factoryType);
-                MethodInfo? method = factoryType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).FirstOrDefault(m => m.Name == "CreateDbContext" && m.GetParameters().Length == 1);
-                if (factory is not null && method is not null)
-                {
-                    try { return method.Invoke(factory, [Array.Empty<string>()]); }
-                    catch { throw new InvalidOperationException("The design-time factory failed during extraction."); }
-                }
+                try { return method.Invoke(factory, [Array.Empty<string>()]); }
+                catch { throw new InvalidOperationException("The design-time factory failed during extraction."); }
             }
         }
         ConstructorInfo? constructor = contextType.GetConstructor(Type.EmptyTypes);
@@ -345,6 +420,20 @@ internal static class Program
             return null;
         try { return constructor.Invoke(null); }
         catch { throw new InvalidOperationException("The DbContext constructor failed during extraction."); }
+    }
+
+    private static bool IsFactoryForContext(Type type, Type contextType)
+    {
+        try
+        {
+            return !type.IsAbstract
+                && type.GetConstructor(Type.EmptyTypes) is not null
+                && type.GetInterfaces().Any(interfaceType =>
+                    interfaceType.IsGenericType
+                    && interfaceType.GetGenericTypeDefinition().FullName == "Microsoft.EntityFrameworkCore.Design.IDesignTimeDbContextFactory`1"
+                    && interfaceType.GetGenericArguments()[0] == contextType);
+        }
+        catch { return false; }
     }
 
     private static string? ReadProvider(object context)

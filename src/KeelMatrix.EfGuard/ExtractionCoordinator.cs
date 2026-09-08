@@ -112,12 +112,33 @@ internal static class ExtractionCoordinator
 
         string workerPath = LocateWorker(projectPath);
         ProcessResult result = await ProcessRunner.RunAsync("dotnet", [workerPath, "--request", requestPath], tempRoot, TimeSpan.FromSeconds(120), cancellationToken).ConfigureAwait(false);
+        return await ReadWorkerResponseAsync(result, responsePath, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task<ExtractionResult> ReadWorkerResponseAsync(ProcessResult result, string responsePath, CancellationToken cancellationToken)
+    {
         if (result.TimedOut)
             return Failure("EF extraction worker timed out.");
         if (result.OutputExceeded)
             return Failure("EF extraction worker exceeded its output limit.");
+
+        if (result.ExitCode != 0)
+        {
+            if (File.Exists(responsePath))
+            {
+                try
+                {
+                    ExtractionResult? failedResponse = JsonSerializer.Deserialize<ExtractionResult>(await File.ReadAllTextAsync(responsePath, cancellationToken).ConfigureAwait(false), JsonOptions);
+                    if (failedResponse is not null && !failedResponse.Success && !string.IsNullOrWhiteSpace(failedResponse.Error))
+                        return Failure(failedResponse.Error);
+                }
+                catch (JsonException) { }
+            }
+            return Failure("EF extraction worker failed.");
+        }
+
         if (!File.Exists(responsePath))
-            return Failure(result.ExitCode == 0 ? "EF extraction worker returned no result." : "EF extraction worker failed.");
+            return Failure("EF extraction worker returned no result.");
 
         try
         {

@@ -1,4 +1,4 @@
-# KeelMatrix.EfGuard
+﻿# KeelMatrix.EfGuard
 
 Your migration compiles. EF Core accepts it. Your rolling deployment can still fail. EfGuard compares application/schema generations and provider behavior to find dangerous rollout states before they merge.
 
@@ -46,7 +46,9 @@ The tool executes the selected project's normal design-time context construction
 - `1`: trustworthy analysis completed with a blocking or unverified diagnostic.
 - `2`: analysis could not complete trustworthily because of configuration, extraction, build, provider, baseline, or internal error.
 
-Use `--format json` for automation. JSON has `schemaVersion: 1`, `provider`, `baseline`, `summary`, `diagnostics`, and `errors`. Each diagnostic contains `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, optional provider/migration/location, `affectedState`, `explanation`, `remediation`, and `uncertainty`.
+Use `--format json` for automation. JSON has `schemaVersion: 1`, `provider`, `providerSql`, `compatibility`, `baseline`, `summary`, `diagnostics`, and `errors`. Each diagnostic contains `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, optional provider/migration/location, `affectedState`, `explanation`, `remediation`, and `uncertainty`.
+
+`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. It is local evidence only: `engineVerified` remains false unless a real database-engine integration gate has verified the behavior. A provider-locking diagnostic without matching generated-SQL evidence is reported as `UNVERIFIED` rather than as a high-confidence claim.
 
 ## Configuration and suppressions
 
@@ -83,7 +85,7 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 | EFG102 | Required column may reject existing rows | BLOCK | compatibility, data loss |
 | EFG201 | Destructive column/table change | HIGH | data loss, rollback |
 | EFG202 | Unsafe column alteration | BLOCK | compatibility, data loss |
-| EFG204 | Unique index validation risk | HIGH | compatibility, blocking |
+| EFG204 | Unique index/constraint validation risk | HIGH | compatibility, blocking |
 | EFG301 | Potentially blocking SQL Server index creation | HIGH | blocking, provider |
 | EFG302 | Write-blocking PostgreSQL index creation | HIGH | blocking, provider |
 | EFG303 | Foreign-key validation and locking risk | HIGH | compatibility, blocking |
@@ -99,7 +101,9 @@ Unknown operations, raw SQL, and custom operations are never silently treated as
 
 Prefer expand, transition, cutover, and contract stages. Add compatible schema first, deploy code that can read both generations, backfill in bounded/resumable batches, switch reads/writes, and remove old schema only after old instances are retired. Provider-specific online or concurrent options still require operational validation.
 
-The baseline matrix is evaluated from extracted EF models: previous application + previous schema, previous application + target schema, current application + previous schema, and current application + target schema. In v1, the explicit previous-application + target-schema compatibility state is blocking when evidence is available.
+The baseline matrix is evaluated from extracted EF models and is included in JSON as `compatibility`: previous application + previous schema, previous application + target schema, current application + previous schema, and current application + target schema. With `rolling`, both overlap states are blocking when the evidence shows incompatibility. With `expand-contract`, previous-application + target-schema is advisory because the strategy declares a staged contract order; current-application + previous-schema is not required. With `blue-green`, neither overlap state is required because the strategy declares isolated application/schema cutover. These strategy verdicts still do not inspect live traffic, queries, or deployment ordering.
+
+When `minimumCompatibleVersions` is greater than one, one `--baseline` reference is insufficient to prove the requested history; EfGuard emits an explicit unverified diagnostic instead of inferring absent application generations. Without a baseline, EfGuard analyzes only the latest discovered migration. With a baseline, it analyzes migrations present in the current extraction but absent from the baseline extraction, treating those as the pending change set.
 
 ## Supported matrix
 

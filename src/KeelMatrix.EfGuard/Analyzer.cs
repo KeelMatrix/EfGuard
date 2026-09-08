@@ -7,7 +7,9 @@ internal static class Analyzer
         Report report = new()
         {
             Provider = current.Provider,
-            Baseline = new BaselineReport { Requested = baselineReference is not null, Reference = baselineReference, Available = baseline is not null }
+            ProviderSql = current.ProviderSql,
+            Baseline = new BaselineReport { Requested = baselineReference is not null, Reference = baselineReference, Available = baseline is not null },
+            Compatibility = BuildCompatibilityMatrix(current, baseline, config)
         };
 
         if (!current.Success)
@@ -30,9 +32,29 @@ internal static class Analyzer
             return report;
         }
 
-        foreach (NormalizedOperation operation in current.Operations)
+        if (baseline is not null)
         {
-            List<Diagnostic> findings = AnalyzeOperation(operation, current.Provider!, baseline?.Model, baseline is not null);
+            AddFindings(report, current.Provider, config, AnalyzeCompatibility(current.Model, baseline.Model, config.Strategy));
+            if (config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase) && config.MinimumCompatibleVersions > 1)
+            {
+                AddFindings(report, current.Provider, config, [Create(
+                    "EFG399", "Insufficient compatibility history", FindingSeverity.Unverified, FindingConfidence.Unknown,
+                    ["compatibility"], current.Provider, null, null,
+                    $"The rolling policy requires compatibility with {config.MinimumCompatibleVersions} previous application versions, but this scan provides only one baseline model.",
+                    "Provide a baseline reference that represents the required compatibility history or lower the policy to the evidence available to this scan.",
+                    "EfGuard does not reconstruct application generations that are absent from the selected baseline.")]);
+            }
+        }
+
+        List<NormalizedOperation> operations = SelectRelevantOperations(current.Operations, baseline, baselineReference);
+        foreach (NormalizedOperation operation in operations)
+        {
+            List<Diagnostic> findings = AnalyzeOperation(
+                operation,
+                current.Provider!,
+                baseline?.Model,
+                config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase),
+                current.ProviderSql);
             if (findings.Count == 0)
             {
                 report.Summary.Compatible++;
@@ -41,34 +63,11 @@ internal static class Analyzer
 
             foreach (Diagnostic finding in findings)
             {
-                if (config.RuleSeverities.TryGetValue(finding.RuleId, out FindingSeverity configured))
-                    finding.Severity = configured;
-
-                if (config.DisabledRules.Contains(finding.RuleId))
-                    finding.Suppressed = true;
-
-                Suppression? suppression = config.Suppressions.FirstOrDefault(s =>
-                    s.Rule.Equals(finding.RuleId, StringComparison.OrdinalIgnoreCase)
-                    && (s.Migration is null || s.Migration.Equals(finding.Migration, StringComparison.OrdinalIgnoreCase)));
-                if (suppression is not null && suppression.Expires is not null && suppression.Expires.Value < DateOnly.FromDateTime(DateTime.UtcNow))
-                {
-                    report.Diagnostics.Add(Create(
-                        "EFG998", "Expired suppression", FindingSeverity.Block, FindingConfidence.High,
-                        ["configuration"], current.Provider, finding.Migration, finding.Location,
-                        $"Suppression for {finding.RuleId} expired on {suppression.Expires:yyyy-MM-dd}.",
-                        "Renew the suppression only with a current, documented rollout reason, or fix the finding.",
-                        "The original diagnostic remains active."));
-                }
-                else if (suppression is not null)
-                {
-                    finding.Suppressed = true;
-                }
-
-                report.Diagnostics.Add(finding);
+                AddFindings(report, current.Provider, config, [finding]);
             }
         }
 
-        report.Summary.OperationsInspected = current.Operations.Count;
+        report.Summary.OperationsInspected = operations.Count;
         report.Summary.Advisory = report.Diagnostics.Count(d => !d.Suppressed && d.Severity == FindingSeverity.Advisory);
         report.Summary.High = report.Diagnostics.Count(d => !d.Suppressed && d.Severity == FindingSeverity.High);
         report.Summary.Blocking = report.Diagnostics.Count(d => !d.Suppressed && d.Severity == FindingSeverity.Block);
@@ -79,7 +78,119 @@ internal static class Analyzer
         return report;
     }
 
-    private static List<Diagnostic> AnalyzeOperation(NormalizedOperation op, string provider, ModelSnapshot? baseline, bool hasBaseline)
+    private static void AddFindings(Report report, string? provider, GuardConfig config, IEnumerable<Diagnostic> findings)
+    {
+        foreach (Diagnostic finding in findings)
+        {
+            if (config.RuleSeverities.TryGetValue(finding.RuleId, out FindingSeverity configured))
+                finding.Severity = configured;
+
+            if (config.DisabledRules.Contains(finding.RuleId))
+                finding.Suppressed = true;
+
+            Suppression? suppression = config.Suppressions.FirstOrDefault(s =>
+                s.Rule.Equals(finding.RuleId, StringComparison.OrdinalIgnoreCase)
+                && (s.Migration is null || s.Migration.Equals(finding.Migration, StringComparison.OrdinalIgnoreCase)));
+            if (suppression is not null && suppression.Expires is not null && suppression.Expires.Value < DateOnly.FromDateTime(DateTime.UtcNow))
+            {
+                report.Diagnostics.Add(Create(
+                    "EFG998", "Expired suppression", FindingSeverity.Block, FindingConfidence.High,
+                    ["configuration"], provider, finding.Migration, finding.Location,
+                    $"Suppression for {finding.RuleId} expired on {suppression.Expires:yyyy-MM-dd}.",
+                    "Renew the suppression only with a current, documented rollout reason, or fix the finding.",
+                    "The original diagnostic remains active."));
+            }
+            else if (suppression is not null)
+            {
+                finding.Suppressed = true;
+            }
+
+            report.Diagnostics.Add(finding);
+        }
+    }
+
+    private static CompatibilityMatrix BuildCompatibilityMatrix(ExtractionResult current, ExtractionResult? baseline, GuardConfig config)
+    {
+        CompatibilityMatrix matrix = new() { Strategy = config.Strategy, MinimumCompatibleVersions = config.MinimumCompatibleVersions };
+        if (baseline is null)
+            return matrix;
+
+        matrix.PreviousApplicationTargetSchema = ModelsCompatible(baseline.Model, current.Model);
+        matrix.CurrentApplicationPreviousSchema = ModelsCompatible(current.Model, baseline.Model);
+        matrix.EvaluatedStates.Add("Previous application + previous schema");
+        matrix.EvaluatedStates.Add("Current application + target schema");
+        if (config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase))
+        {
+            matrix.EvaluatedStates.Add("Previous application + target schema");
+            matrix.EvaluatedStates.Add("Current application + previous schema");
+        }
+        else if (config.Strategy.Equals("expand-contract", StringComparison.OrdinalIgnoreCase))
+        {
+            matrix.EvaluatedStates.Add("Previous application + target schema");
+        }
+        return matrix;
+    }
+
+    private static List<Diagnostic> AnalyzeCompatibility(ModelSnapshot current, ModelSnapshot baseline, string strategy)
+    {
+        List<Diagnostic> findings = [];
+        bool previousTargetCompatible = ModelsCompatible(baseline, current);
+        bool currentPreviousCompatible = ModelsCompatible(current, baseline);
+        bool rolling = strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase);
+        bool expandContract = strategy.Equals("expand-contract", StringComparison.OrdinalIgnoreCase);
+
+        if (!previousTargetCompatible && (rolling || expandContract))
+        {
+            findings.Add(Create(
+                "EFG101", "Rolling-deployment incompatibility", rolling ? FindingSeverity.Block : FindingSeverity.Advisory,
+                rolling ? FindingConfidence.High : FindingConfidence.Medium,
+                ["compatibility"], null, null, null,
+                "The previous application model is not compatible with the target schema during the configured deployment sequence.",
+                expandContract
+                    ? "Treat this as a contract step only after the previous application generation is retired; keep expansion and transition changes separate."
+                    : "Use an expand/transition/contract rollout and deploy a compatible application before applying the contract change.",
+                "Model comparison does not inspect live queries, data, traffic, or deployment ordering.",
+                "Previous application + target schema"));
+        }
+
+        if (!currentPreviousCompatible && rolling)
+        {
+            findings.Add(Create(
+                "EFG101", "Rolling-deployment incompatibility", FindingSeverity.Block, FindingConfidence.High,
+                ["compatibility"], null, null, null,
+                "The current application model requires schema elements that are absent from the previous schema.",
+                "Apply an additive expansion first, then deploy the application generation that requires the new schema.",
+                "Model comparison does not inspect live queries, data, traffic, or deployment ordering.",
+                "Current application + previous schema"));
+        }
+        return findings;
+    }
+
+    private static List<NormalizedOperation> SelectRelevantOperations(List<NormalizedOperation> operations, ExtractionResult? baseline, string? baselineReference)
+    {
+        if (operations.Count == 0)
+            return [];
+
+        if (baselineReference is not null && baseline is not null)
+        {
+            HashSet<string> baselineMigrations = baseline.Operations
+                .Where(operation => operation.Migration is not null)
+                .Select(operation => operation.Migration!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return operations.Where(operation => operation.Migration is null || !baselineMigrations.Contains(operation.Migration)).ToList();
+        }
+
+        string? latestMigration = operations
+            .Select(operation => operation.Migration)
+            .Where(migration => migration is not null)
+            .OrderByDescending(migration => migration, StringComparer.Ordinal)
+            .FirstOrDefault();
+        return latestMigration is null
+            ? operations
+            : operations.Where(operation => operation.Migration?.Equals(latestMigration, StringComparison.OrdinalIgnoreCase) == true).ToList();
+    }
+
+    private static List<Diagnostic> AnalyzeOperation(NormalizedOperation op, string provider, ModelSnapshot? baseline, bool enforceOverlap, ProviderSqlEvidence providerSql)
     {
         List<Diagnostic> findings = [];
         bool oldColumnExists = baseline is not null && ContainsColumn(baseline, op.Schema, op.Table, op.Column);
@@ -88,7 +199,7 @@ internal static class Analyzer
         switch (op.Kind)
         {
             case "drop-column":
-                if (oldColumnExists)
+                if (enforceOverlap && oldColumnExists)
                     findings.Add(Create("EFG101", "Rolling-deployment incompatibility", FindingSeverity.Block, FindingConfidence.High,
                         ["compatibility", "data-loss"], provider, op.Migration, Location(op),
                         $"{op.Table}.{op.Column} exists in the baseline EF model but is removed by the target migration.",
@@ -101,7 +212,7 @@ internal static class Analyzer
                     "The analysis does not inspect database contents or backups."));
                 break;
             case "drop-table":
-                if (oldTableExists)
+                if (enforceOverlap && oldTableExists)
                     findings.Add(Create("EFG101", "Rolling-deployment incompatibility", FindingSeverity.Block, FindingConfidence.High,
                         ["compatibility", "data-loss"], provider, op.Migration, Location(op),
                         $"Table {op.Table} exists in the baseline EF model but is removed by the target migration.",
@@ -113,14 +224,14 @@ internal static class Analyzer
                     "Use an expand/transition/contract rollout and preserve a recoverable copy before the contract step.",
                     "The analysis does not inspect database contents or backups."));
                 break;
-            case "rename-column" when oldColumnExists:
+            case "rename-column" when enforceOverlap && oldColumnExists:
                 findings.Add(Create("EFG101", "Rolling-deployment incompatibility", FindingSeverity.Block, FindingConfidence.High,
                     ["compatibility"], provider, op.Migration, Location(op),
                     $"{op.Table}.{op.Column} exists in the baseline EF model but is renamed to {op.NewColumn}; older application instances still expect the old name.",
                     "Add the new column, dual-read/write during transition, then remove the old column in a later contract migration.",
                     "A rename is modeled as an incompatible name change for overlapping application generations."));
                 break;
-            case "rename-table" when oldTableExists:
+            case "rename-table" when enforceOverlap && oldTableExists:
                 findings.Add(Create("EFG101", "Rolling-deployment incompatibility", FindingSeverity.Block, FindingConfidence.High,
                     ["compatibility"], provider, op.Migration, Location(op),
                     $"Table {op.Table} exists in the baseline EF model but is renamed to {op.NewTable}; older application instances still expect the old name.",
@@ -137,28 +248,32 @@ internal static class Analyzer
             case "alter-column" when IsUnsafeAlter(op):
                 findings.Add(Create("EFG202", "Unsafe column alteration", FindingSeverity.Block, FindingConfidence.High,
                     ["compatibility", "data-loss"], provider, op.Migration, Location(op),
-                    $"Column {op.Table}.{op.Column} changes from {FormatType(op.OldClrType, op.OldMaxLength, op.OldPrecision, op.OldScale)} to {FormatType(op.ClrType, op.MaxLength, op.Precision, op.Scale)} in a way that can reject existing values or old application writes.",
+                    $"Column {op.Table}.{op.Column} changes from {FormatType(op.OldClrType, op.OldMaxLength, op.OldPrecision, op.OldScale, op.OldCollation)} to {FormatType(op.ClrType, op.MaxLength, op.Precision, op.Scale, op.Collation)} in a way that can reject existing values or old application writes.",
                     "Add a compatible representation, migrate values explicitly, switch application reads/writes, and contract the old representation later.",
                     "The tool does not inspect live data, collation contents, or application query behavior."));
                 break;
-            case "create-index" when provider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) && !op.IsConcurrent:
-                findings.Add(Create("EFG302", "Write-blocking index creation", FindingSeverity.High, FindingConfidence.High,
-                    ["blocking", "provider"], provider, op.Migration, Location(op),
-                    $"The PostgreSQL index operation for {op.Table} is not configured for concurrent creation.",
-                    "Use the provider-supported concurrent index option when appropriate and use the transaction semantics required by that option.",
-                    "Runtime lock and wait behavior still depends on production workload and PostgreSQL version."));
-                break;
-            case "create-index" when provider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) && !op.IsOnline:
-                findings.Add(Create("EFG301", "Potentially blocking index creation", FindingSeverity.High, FindingConfidence.High,
-                    ["blocking", "provider"], provider, op.Migration, Location(op),
-                    $"The SQL Server index operation for {op.Table} is not marked for online creation.",
-                    "Evaluate SQL Server/Azure SQL online index support and configure online creation where supported; otherwise schedule the operation for an appropriate maintenance window.",
-                    "Online index support depends on engine edition, version, index shape, and workload."));
-                break;
-            case "create-index" when op.IsUnique:
-                findings.Add(Create("EFG204", "Unique index validation risk", FindingSeverity.High, FindingConfidence.High,
+            case "create-index":
+                if (provider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) && !op.IsConcurrent)
+                    findings.Add(CreateProviderFinding("EFG302", "Write-blocking index creation", provider, op, providerSql,
+                        $"The PostgreSQL index operation for {op.Table} is not configured for concurrent creation.",
+                        "Use the provider-supported concurrent index option when appropriate and use the transaction semantics required by that option.",
+                        ["blocking", "provider"]));
+                if (provider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) && !op.IsOnline)
+                    findings.Add(CreateProviderFinding("EFG301", "Potentially blocking index creation", provider, op, providerSql,
+                        $"The SQL Server index operation for {op.Table} is not marked for online creation.",
+                        "Evaluate SQL Server/Azure SQL online index support and configure online creation where supported; otherwise schedule the operation for an appropriate maintenance window.",
+                        ["blocking", "provider"]));
+                if (op.IsUnique)
+                    findings.Add(Create("EFG204", "Unique index validation risk", FindingSeverity.High, FindingConfidence.High,
                     ["compatibility", "blocking"], provider, op.Migration, Location(op),
                     $"The migration creates a unique index on {op.Table}; existing duplicate values can make the migration fail.",
+                    "Check and remediate duplicate values before enforcing uniqueness, then create the constraint during a controlled transition.",
+                    "The tool does not connect to the database or inspect existing values."));
+                break;
+            case "unique-constraint":
+                findings.Add(Create("EFG204", "Unique constraint validation risk", FindingSeverity.High, FindingConfidence.High,
+                    ["compatibility", "blocking"], provider, op.Migration, Location(op),
+                    $"The migration creates a unique constraint on {op.Table}; existing duplicate values can make the migration fail.",
                     "Check and remediate duplicate values before enforcing uniqueness, then create the constraint during a controlled transition.",
                     "The tool does not connect to the database or inspect existing values."));
                 break;
@@ -196,8 +311,18 @@ internal static class Analyzer
         return findings;
     }
 
+    private static Diagnostic CreateProviderFinding(string ruleId, string title, string provider, NormalizedOperation operation, ProviderSqlEvidence evidence, string explanation, string remediation, List<string> risks)
+    {
+        bool hasEvidence = evidence.Available && evidence.Statements.Any(statement => operation.Migration is null || statement.Migration is null || statement.Migration.Equals(operation.Migration, StringComparison.OrdinalIgnoreCase));
+        return Create(ruleId, title, hasEvidence ? FindingSeverity.High : FindingSeverity.Unverified, hasEvidence ? FindingConfidence.High : FindingConfidence.Unknown,
+            risks, provider, operation.Migration, Location(operation), explanation, remediation,
+            hasEvidence
+                ? "Provider-generated migration SQL is retained as evidence, but runtime lock duration still depends on engine version, capabilities, workload, and deployment conditions."
+                : "Provider-generated SQL for the migration operations under review was not available, so this provider-specific claim is explicitly unverified.");
+    }
+
     private static Diagnostic Create(string ruleId, string title, FindingSeverity severity, FindingConfidence confidence,
-        List<string> risks, string? provider, string? migration, string? location, string explanation, string remediation, string uncertainty)
+        List<string> risks, string? provider, string? migration, string? location, string explanation, string remediation, string uncertainty, string? affectedState = null)
         => new()
         {
             RuleId = ruleId,
@@ -208,11 +333,24 @@ internal static class Analyzer
             Provider = provider,
             Migration = migration,
             Location = location,
-            AffectedState = ruleId == "EFG101" ? "The baseline model and target migration are incompatible during overlap." : null,
+            AffectedState = affectedState ?? (ruleId == "EFG101" ? "The baseline model and target migration are incompatible during overlap." : null),
             Explanation = explanation,
             Remediation = remediation,
             Uncertainty = uncertainty
         };
+
+    private static bool ModelsCompatible(ModelSnapshot application, ModelSnapshot schema)
+    {
+        foreach (ModelTable applicationTable in application.Tables)
+        {
+            ModelTable? schemaTable = schema.Tables.FirstOrDefault(table => SameTable(table.Name, applicationTable.Name) && Same(table.Schema, applicationTable.Schema));
+            if (schemaTable is null)
+                return false;
+            if (applicationTable.Columns.Any(column => !schemaTable.Columns.Any(candidate => Same(candidate.Name, column.Name))))
+                return false;
+        }
+        return true;
+    }
 
     private static bool ContainsTable(ModelSnapshot snapshot, string? schema, string? table)
         => table is not null && snapshot.Tables.Any(t => SameTable(t.Name, table!) && Same(t.Schema, schema));
@@ -222,12 +360,9 @@ internal static class Analyzer
 
     private static bool SameTable(string left, string right)
     {
-        if (Same(left, right))
-            return true;
-
-        string shortName = left.Contains('.', StringComparison.Ordinal) ? left[(left.LastIndexOf('.') + 1)..] : left;
-        string singularRight = right.EndsWith('s') ? right[..^1] : right;
-        return Same(shortName, right) || Same(shortName, singularRight);
+        string leftName = left.Contains('.', StringComparison.Ordinal) ? left[(left.LastIndexOf('.') + 1)..] : left;
+        string rightName = right.Contains('.', StringComparison.Ordinal) ? right[(right.LastIndexOf('.') + 1)..] : right;
+        return Same(leftName, rightName);
     }
 
     private static bool Same(string? left, string? right)
@@ -243,9 +378,10 @@ internal static class Analyzer
         bool lengthNarrowed = op.OldMaxLength is not null && op.MaxLength is not null && op.MaxLength < op.OldMaxLength;
         bool precisionNarrowed = op.OldPrecision is not null && op.Precision is not null && op.Precision < op.OldPrecision;
         bool scaleNarrowed = op.OldScale is not null && op.Scale is not null && op.Scale < op.OldScale;
-        return typeChanged || nullabilityNarrowed || lengthNarrowed || precisionNarrowed || scaleNarrowed;
+        bool collationChanged = op.OldCollation is not null && op.Collation is not null && !op.OldCollation.Equals(op.Collation, StringComparison.OrdinalIgnoreCase);
+        return typeChanged || nullabilityNarrowed || lengthNarrowed || precisionNarrowed || scaleNarrowed || collationChanged;
     }
 
-    private static string FormatType(string? type, int? length, byte? precision, byte? scale)
-        => type is null ? "the previous type" : length is not null ? $"{type}({length})" : precision is not null ? $"{type}({precision},{scale})" : type;
+    private static string FormatType(string? type, int? length, byte? precision, byte? scale, string? collation)
+        => type is null ? "the previous type" : length is not null ? $"{type}({length})" : precision is not null ? $"{type}({precision},{scale})" : collation is null ? type : $"{type} with collation {collation}";
 }
