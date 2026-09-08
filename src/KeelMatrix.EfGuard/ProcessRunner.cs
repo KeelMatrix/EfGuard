@@ -4,6 +4,7 @@ using System.Text;
 namespace KeelMatrix.EfGuard;
 
 internal sealed record ProcessResult(int ExitCode, bool TimedOut, bool OutputExceeded, string StandardOutput, string StandardError);
+internal sealed record BoundedOutput(string Text, bool Exceeded);
 
 internal static class ProcessRunner
 {
@@ -34,43 +35,51 @@ internal static class ProcessRunner
             return new ProcessResult(-1, false, false, "", "");
         }
 
-        Task<string> stdout = ReadBoundedAsync(process.StandardOutput.BaseStream, cancellationToken);
-        Task<string> stderr = ReadBoundedAsync(process.StandardError.BaseStream, cancellationToken);
+        Task<BoundedOutput> stdout = ReadBoundedAsync(process.StandardOutput.BaseStream, cancellationToken);
+        Task<BoundedOutput> stderr = ReadBoundedAsync(process.StandardError.BaseStream, cancellationToken);
         Task wait = process.WaitForExitAsync(cancellationToken);
         Task completed = await Task.WhenAny(wait, Task.Delay(timeout, cancellationToken)).ConfigureAwait(false);
         if (completed != wait)
         {
             TryKill(process);
-            return new ProcessResult(-1, true, false, await SafeResult(stdout).ConfigureAwait(false), await SafeResult(stderr).ConfigureAwait(false));
+            BoundedOutput timedOutOutput = await SafeResult(stdout).ConfigureAwait(false);
+            BoundedOutput timedOutError = await SafeResult(stderr).ConfigureAwait(false);
+            return new ProcessResult(-1, true, timedOutOutput.Exceeded || timedOutError.Exceeded, timedOutOutput.Text, timedOutError.Text);
         }
 
-        string output = await SafeResult(stdout).ConfigureAwait(false);
-        string error = await SafeResult(stderr).ConfigureAwait(false);
-        bool outputExceeded = output.Length >= MaxOutputBytes || error.Length >= MaxOutputBytes;
-        return new ProcessResult(process.ExitCode, false, outputExceeded, output, error);
+        BoundedOutput output = await SafeResult(stdout).ConfigureAwait(false);
+        BoundedOutput error = await SafeResult(stderr).ConfigureAwait(false);
+        return new ProcessResult(process.ExitCode, false, output.Exceeded || error.Exceeded, output.Text, error.Text);
     }
 
-    private static async Task<string> ReadBoundedAsync(Stream stream, CancellationToken cancellationToken)
+    private static async Task<BoundedOutput> ReadBoundedAsync(Stream stream, CancellationToken cancellationToken)
     {
         StringBuilder result = new();
         byte[] buffer = new byte[4096];
-        while (result.Length < MaxOutputBytes)
+        int storedBytes = 0;
+        bool exceeded = false;
+        while (true)
         {
             int read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (read == 0)
                 break;
-            int remaining = MaxOutputBytes - result.Length;
-            result.Append(Encoding.UTF8.GetString(buffer, 0, Math.Min(read, remaining)));
-            if (read > remaining)
-                break;
+            int remaining = MaxOutputBytes - storedBytes;
+            int toStore = Math.Min(read, Math.Max(remaining, 0));
+            if (toStore > 0)
+            {
+                result.Append(Encoding.UTF8.GetString(buffer, 0, toStore));
+                storedBytes += toStore;
+            }
+            if (read > toStore)
+                exceeded = true;
         }
-        return result.ToString();
+        return new BoundedOutput(result.ToString(), exceeded);
     }
 
-    private static async Task<string> SafeResult(Task<string> task)
+    private static async Task<BoundedOutput> SafeResult(Task<BoundedOutput> task)
     {
         try { return await task.ConfigureAwait(false); }
-        catch { return ""; }
+        catch { return new BoundedOutput("", false); }
     }
 
     internal static void TryKill(Process process)
