@@ -1,4 +1,4 @@
-namespace KeelMatrix.EfGuard.Tests;
+﻿namespace KeelMatrix.EfGuard.Tests;
 
 public sealed class ProcessRunnerTests
 {

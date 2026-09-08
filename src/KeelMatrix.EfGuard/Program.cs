@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using KeelMatrix.Telemetry;
@@ -35,7 +35,7 @@ internal static class Program
         if (!options.Command.Equals("check", StringComparison.OrdinalIgnoreCase))
             return WriteError("The supported command is 'check'.", options.Format == OutputFormat.Json);
 
-        Report report;
+        Report report = new();
         try
         {
             string currentDirectory = Environment.CurrentDirectory;
