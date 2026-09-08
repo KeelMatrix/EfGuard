@@ -11,7 +11,7 @@ public sealed class ExtractionFixtureTests
         string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));
         ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, null, CancellationToken.None);
 
-        Assert.True(result.Success, result.Error);
+        Assert.True(result.Success, $"Extraction failed: {result.Error ?? "(no error returned)"}");
         Assert.Equal(provider, result.Provider);
         Assert.True(result.ProviderSqlGenerated);
         Assert.Contains(result.Operations, operation => operation.Kind == operationKind);

@@ -317,7 +317,8 @@ internal static class Program
         {
             object? database = context.GetType().GetProperty("Database")?.GetValue(context);
             MethodInfo? method = database?.GetType().GetMethod("GenerateCreateScript", Type.EmptyTypes);
-            return method?.Invoke(database, null) is string script && script.Length > 0;
+            string? script = method?.Invoke(database, null) as string ?? (database is null ? null : Reflection.String(database, "GenerateCreateScript"));
+            return script is not null && script.Length > 0;
         }
         catch { return false; }
     }
