@@ -136,7 +136,7 @@ internal static class ExtractionCoordinator
         string packaged = Path.Combine(AppContext.BaseDirectory, "KeelMatrix.EfGuard.Worker.dll");
         if (wantsNet10)
         {
-            string net10Packaged = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "net10.0", "any", "KeelMatrix.EfGuard.Worker.dll"));
+            string net10Packaged = Path.Combine(AppContext.BaseDirectory, "net10.0", "KeelMatrix.EfGuard.Worker.dll");
             if (File.Exists(net10Packaged))
                 return net10Packaged;
         }

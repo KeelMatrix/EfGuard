@@ -48,9 +48,9 @@
       <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net8.0\KeelMatrix.EfGuard.Worker.dll" Pack="true" PackagePath="tools\net8.0\any" />
       <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net8.0\KeelMatrix.EfGuard.Worker.deps.json" Pack="true" PackagePath="tools\net8.0\any" />
       <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net8.0\KeelMatrix.EfGuard.Worker.runtimeconfig.json" Pack="true" PackagePath="tools\net8.0\any" />
-      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.dll" Pack="true" PackagePath="tools\net10.0\any" />
-      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.deps.json" Pack="true" PackagePath="tools\net10.0\any" />
-      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.runtimeconfig.json" Pack="true" PackagePath="tools\net10.0\any" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.dll" Pack="true" PackagePath="tools\net8.0\any\net10.0" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.deps.json" Pack="true" PackagePath="tools\net8.0\any\net10.0" />
+      <None Include="$(MSBuildProjectDirectory)\..\KeelMatrix.EfGuard.Worker\bin\$(Configuration)\net10.0\KeelMatrix.EfGuard.Worker.runtimeconfig.json" Pack="true" PackagePath="tools\net8.0\any\net10.0" />
     </ItemGroup>
   </Target>
 </Project>
