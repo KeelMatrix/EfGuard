@@ -38,7 +38,7 @@ Use explicit paths when discovery is not unambiguous:
 efguard check --project src/Orders/Orders.csproj --startup-project src/Orders.Api/Orders.Api.csproj --context OrdersDbContext
 ```
 
-The tool executes the selected project's normal design-time context construction in a bounded child process. Keep design-time factories free of production connections and side effects.
+The tool executes the selected project's normal design-time context construction in a bounded child process. Keep design-time factories free of production connections and side effects. The worker response file is limited to 4 MiB (4,194,304 bytes); an oversized response is an untrustworthy extraction failure and returns exit code `2`.
 
 ## Exit codes and output
 
@@ -103,7 +103,7 @@ Prefer expand, transition, cutover, and contract stages. Add compatible schema f
 
 The baseline matrix is evaluated from extracted EF models and is included in JSON as `compatibility`: previous application + previous schema, previous application + target schema, current application + previous schema, and current application + target schema. With `rolling`, both overlap states are blocking when the evidence shows incompatibility. With `expand-contract`, previous-application + target-schema is advisory because the strategy declares a staged contract order; current-application + previous-schema is not required. With `blue-green`, neither overlap state is required because the strategy declares isolated application/schema cutover. These strategy verdicts still do not inspect live traffic, queries, or deployment ordering.
 
-When `minimumCompatibleVersions` is greater than one, one `--baseline` reference is insufficient to prove the requested history; EfGuard emits an explicit unverified diagnostic instead of inferring absent application generations. Without a baseline, EfGuard analyzes only the latest discovered migration. With a baseline, it analyzes migrations present in the current extraction but absent from the baseline extraction, treating those as the pending change set.
+When `minimumCompatibleVersions` is greater than one, one `--baseline` reference is insufficient to prove the requested history; EfGuard emits an explicit unverified diagnostic instead of inferring absent application generations. The same diagnostic is emitted when no baseline is supplied, because the configured history has no evidence at all. Unless `EFG399` is explicitly overridden or disabled, these cases cannot exit cleanly. With the default one-generation policy, a compatible supplied baseline remains clean. Without a baseline, EfGuard analyzes only the latest discovered migration. With a baseline, it analyzes migrations present in the current extraction but absent from the baseline extraction, treating those as the pending change set.
 
 ## Supported matrix
 

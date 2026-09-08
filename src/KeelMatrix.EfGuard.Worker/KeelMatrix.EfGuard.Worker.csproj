@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\KeelMatrix.EfGuard\Contracts.cs" Link="Contracts.cs" />
+    <Compile Include="..\KeelMatrix.EfGuard\ExtractionResponse.cs" Link="ExtractionResponse.cs" />
   </ItemGroup>
 </Project>

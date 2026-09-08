@@ -82,6 +82,57 @@ public sealed class ProcessRunnerTests
     }
 
     [Fact]
+    public async Task OversizedWorkerResponseIsRejectedWithoutReadingItsContents()
+    {
+        string responsePath = Path.Combine(Path.GetTempPath(), "efguard-response-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            await File.WriteAllBytesAsync(responsePath, new byte[ExtractionLimits.MaxResponseBytes + 1]);
+
+            ExtractionResult result = await ExtractionCoordinator.ReadWorkerResponseAsync(
+                new ProcessResult(0, false, false, "", ""), responsePath, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal("EF extraction worker response exceeded the 4 MiB limit.", result.Error);
+        }
+        finally
+        {
+            if (File.Exists(responsePath))
+                File.Delete(responsePath);
+        }
+    }
+
+    [Fact]
+    public async Task WorkerResponseWriterFailsBeforePublishingOversizedResponse()
+    {
+        string responsePath = Path.Combine(Path.GetTempPath(), "efguard-response-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            ExtractionResult result = new()
+            {
+                Success = true,
+                ProviderSql = new ProviderSqlEvidence
+                {
+                    Statements = [new ProviderSqlStatement { Sql = new string('x', ExtractionLimits.MaxResponseBytes) }]
+                }
+            };
+
+            await Assert.ThrowsAsync<ResponseSizeLimitExceededException>(() => ExtractionResponse.WriteAsync(
+                responsePath, result, new System.Text.Json.JsonSerializerOptions()));
+
+            Assert.False(File.Exists(responsePath));
+            Assert.False(File.Exists(responsePath + ".tmp"));
+        }
+        finally
+        {
+            if (File.Exists(responsePath))
+                File.Delete(responsePath);
+            if (File.Exists(responsePath + ".tmp"))
+                File.Delete(responsePath + ".tmp");
+        }
+    }
+
+    [Fact]
     public void BaselinePathDoesNotUseActiveWorktreeAsExtractionDirectory()
     {
         string? root = ExtractionCoordinator.FindRepositoryRoot(Environment.CurrentDirectory);

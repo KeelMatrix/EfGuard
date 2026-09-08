@@ -126,29 +126,51 @@ internal static class ExtractionCoordinator
         {
             if (File.Exists(responsePath))
             {
+                if (ResponseExceedsLimit(responsePath))
+                    return Failure("EF extraction worker response exceeded the 4 MiB limit.");
+
                 try
                 {
-                    ExtractionResult? failedResponse = JsonSerializer.Deserialize<ExtractionResult>(await File.ReadAllTextAsync(responsePath, cancellationToken).ConfigureAwait(false), JsonOptions);
+                    ExtractionResult? failedResponse = await ReadResponseAsync(responsePath, cancellationToken).ConfigureAwait(false);
                     if (failedResponse is not null && !failedResponse.Success && !string.IsNullOrWhiteSpace(failedResponse.Error))
                         return Failure(failedResponse.Error);
                 }
                 catch (JsonException) { }
+                catch (IOException) { }
             }
             return Failure("EF extraction worker failed.");
         }
 
         if (!File.Exists(responsePath))
             return Failure("EF extraction worker returned no result.");
+        if (ResponseExceedsLimit(responsePath))
+            return Failure("EF extraction worker response exceeded the 4 MiB limit.");
 
         try
         {
-            ExtractionResult? response = JsonSerializer.Deserialize<ExtractionResult>(await File.ReadAllTextAsync(responsePath, cancellationToken).ConfigureAwait(false), JsonOptions);
+            ExtractionResult? response = await ReadResponseAsync(responsePath, cancellationToken).ConfigureAwait(false);
             return response ?? Failure("EF extraction worker returned an empty result.");
         }
         catch (JsonException)
         {
             return Failure("EF extraction worker returned an invalid result.");
         }
+        catch (IOException)
+        {
+            return Failure("EF extraction worker response could not be read.");
+        }
+    }
+
+    private static bool ResponseExceedsLimit(string responsePath)
+    {
+        try { return new FileInfo(responsePath).Length > ExtractionLimits.MaxResponseBytes; }
+        catch { return true; }
+    }
+
+    private static async Task<ExtractionResult?> ReadResponseAsync(string responsePath, CancellationToken cancellationToken)
+    {
+        await using FileStream stream = new(responsePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        return await JsonSerializer.DeserializeAsync<ExtractionResult>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
     }
 
     private static string LocateWorker(string projectPath)

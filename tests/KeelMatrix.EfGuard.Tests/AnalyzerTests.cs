@@ -128,6 +128,35 @@ public sealed class AnalyzerTests
     }
 
     [Fact]
+    public void RollingPolicyWithoutBaselineReportsUnverifiedCompatibilityHistory()
+    {
+        Report report = Analyzer.Analyze(Current(Array.Empty<NormalizedOperation>(), "Microsoft.EntityFrameworkCore.SqlServer"), null, new GuardConfig { MinimumCompatibleVersions = 2 }, null);
+
+        Assert.Contains(report.Diagnostics, d => d.RuleId == "EFG399" && d.Title == "Insufficient compatibility history" && d.Severity == FindingSeverity.Unverified);
+        Assert.Equal(1, report.Summary.Unverified);
+        Assert.Equal(1, report.Summary.ExitCode);
+    }
+
+    [Fact]
+    public void CompatibleBaselineWithDefaultHistoryPolicyRemainsClean()
+    {
+        ExtractionResult current = Current(Array.Empty<NormalizedOperation>(), "Microsoft.EntityFrameworkCore.SqlServer");
+        current.Model = new ModelSnapshot { Tables = [new ModelTable { Name = "Orders", Columns = [new ModelColumn { Name = "Id" }] }] };
+        ExtractionResult baseline = new()
+        {
+            Success = true,
+            Provider = current.Provider,
+            ProviderSupported = true,
+            Model = new ModelSnapshot { Tables = [new ModelTable { Name = "Orders", Columns = [new ModelColumn { Name = "Id" }] }] }
+        };
+
+        Report report = Analyzer.Analyze(current, baseline, new GuardConfig(), "HEAD~1");
+
+        Assert.Empty(report.Diagnostics);
+        Assert.Equal(0, report.Summary.ExitCode);
+    }
+
+    [Fact]
     public void BaselineSelectsOnlyMigrationsAddedAfterReference()
     {
         ExtractionResult current = Current([

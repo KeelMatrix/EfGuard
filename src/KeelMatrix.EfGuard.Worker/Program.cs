@@ -461,7 +461,11 @@ internal static class Program
     private static ExtractionResult Failure(string message) => new() { Success = false, Error = message };
     private static string EnsureTrailingSeparator(string path) => path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
     private static void TryKill(Process process) { try { if (!process.HasExited) process.Kill(true); } catch { } }
-    private static async Task WriteResponseAsync(string? path, ExtractionResult result) { if (path is not null) await File.WriteAllTextAsync(path, JsonSerializer.Serialize(result)).ConfigureAwait(false); }
+    private static async Task WriteResponseAsync(string? path, ExtractionResult result)
+    {
+        if (path is not null)
+            await ExtractionResponse.WriteAsync(path, result, JsonOptions).ConfigureAwait(false);
+    }
 }
 
 internal sealed class TargetLoadContext(IEnumerable<string> probingPaths) : AssemblyLoadContext("EfGuard.Target", isCollectible: true)

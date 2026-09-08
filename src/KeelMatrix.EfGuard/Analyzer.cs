@@ -35,15 +35,19 @@ internal static class Analyzer
         if (baseline is not null)
         {
             AddFindings(report, current.Provider, config, AnalyzeCompatibility(current.Model, baseline.Model, config.Strategy));
-            if (config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase) && config.MinimumCompatibleVersions > 1)
-            {
-                AddFindings(report, current.Provider, config, [Create(
-                    "EFG399", "Insufficient compatibility history", FindingSeverity.Unverified, FindingConfidence.Unknown,
-                    ["compatibility"], current.Provider, null, null,
-                    $"The rolling policy requires compatibility with {config.MinimumCompatibleVersions} previous application versions, but this scan provides only one baseline model.",
-                    "Provide a baseline reference that represents the required compatibility history or lower the policy to the evidence available to this scan.",
-                    "EfGuard does not reconstruct application generations that are absent from the selected baseline.")]);
-            }
+        }
+
+        if (config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase) && config.MinimumCompatibleVersions > 1)
+        {
+            string historyExplanation = baseline is null
+                ? $"The rolling policy requires compatibility with {config.MinimumCompatibleVersions} previous application versions, but this scan has no baseline history evidence."
+                : $"The rolling policy requires compatibility with {config.MinimumCompatibleVersions} previous application versions, but this scan provides only one baseline model.";
+            AddFindings(report, current.Provider, config, [Create(
+                "EFG399", "Insufficient compatibility history", FindingSeverity.Unverified, FindingConfidence.Unknown,
+                ["compatibility"], current.Provider, null, null,
+                historyExplanation,
+                "Provide baseline history that represents the required compatibility generations or lower the policy to the evidence available to this scan.",
+                "EfGuard does not reconstruct application generations that are absent from the selected evidence.")]);
         }
 
         List<NormalizedOperation> operations = SelectRelevantOperations(current.Operations, baseline, baselineReference);
