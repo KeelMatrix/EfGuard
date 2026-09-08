@@ -91,7 +91,7 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 | EFG303 | Foreign-key validation and locking risk | HIGH | compatibility, blocking |
 | EFG304 | Unbounded data backfill | HIGH | blocking, data loss |
 | EFG305 | Transaction semantics require review | HIGH | blocking, provider |
-| EFG399 | Unverified migration operation | UNVERIFIED | compatibility, provider |
+| EFG399 | Unverified operation or compatibility history | UNVERIFIED | compatibility, provider |
 | EFG900 | Unsupported database provider | UNVERIFIED | provider |
 | EFG998 | Expired suppression | BLOCK | configuration |
 
