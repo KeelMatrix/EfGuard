@@ -81,19 +81,19 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 
 | ID | Diagnostic | Default | Risk |
 | --- | --- | --- | --- |
-| EFG101 | Rolling-deployment incompatibility | BLOCK | compatibility, data loss |
-| EFG102 | Required column may reject existing rows | BLOCK | compatibility, data loss |
-| EFG201 | Destructive column/table change | HIGH | data loss, rollback |
-| EFG202 | Unsafe column alteration | BLOCK | compatibility, data loss |
-| EFG204 | Unique index/constraint validation risk | HIGH | compatibility, blocking |
-| EFG301 | Potentially blocking SQL Server index creation | HIGH | blocking, provider |
-| EFG302 | Write-blocking PostgreSQL index creation | HIGH | blocking, provider |
-| EFG303 | Foreign-key validation and locking risk | HIGH | compatibility, blocking |
-| EFG304 | Unbounded data backfill | HIGH | blocking, data loss |
-| EFG305 | Transaction semantics require review | HIGH | blocking, provider |
-| EFG399 | Unverified operation or compatibility history | UNVERIFIED | compatibility, provider |
-| EFG900 | Unsupported database provider | UNVERIFIED | provider |
-| EFG998 | Expired suppression | BLOCK | configuration |
+| [EFG101](docs/rules/EFG101.md) | Rolling-deployment incompatibility | BLOCK | compatibility, data loss |
+| [EFG102](docs/rules/EFG102.md) | Required column may reject existing rows | BLOCK | compatibility, data loss |
+| [EFG201](docs/rules/EFG201.md) | Destructive column/table change | HIGH | data loss, rollback |
+| [EFG202](docs/rules/EFG202.md) | Unsafe column alteration | BLOCK | compatibility, data loss |
+| [EFG204](docs/rules/EFG204.md) | Unique index/constraint validation risk | HIGH | compatibility, blocking |
+| [EFG301](docs/rules/EFG301.md) | Potentially blocking SQL Server index creation | HIGH | blocking, provider |
+| [EFG302](docs/rules/EFG302.md) | Write-blocking PostgreSQL index creation | HIGH | blocking, provider |
+| [EFG303](docs/rules/EFG303.md) | Foreign-key validation and locking risk | HIGH | compatibility, blocking |
+| [EFG304](docs/rules/EFG304.md) | Unbounded data backfill | HIGH | blocking, data loss |
+| [EFG305](docs/rules/EFG305.md) | Transaction semantics require review | HIGH | blocking, provider |
+| [EFG399](docs/rules/EFG399.md) | Unverified operation or compatibility history | UNVERIFIED | compatibility, provider |
+| [EFG900](docs/rules/EFG900.md) | Unsupported database provider | UNVERIFIED | provider |
+| [EFG998](docs/rules/EFG998.md) | Expired suppression | BLOCK | configuration |
 
 Unknown operations, raw SQL, and custom operations are never silently treated as safe. SQL is classified locally and is not included in telemetry. Provider lock behavior depends on engine version, capabilities, and workload; EfGuard cannot guarantee zero downtime.
 
@@ -108,6 +108,34 @@ When `minimumCompatibleVersions` is greater than one, one `--baseline` reference
 ## Supported matrix
 
 The CLI targets `net8.0`. Extraction supports EF Core 8, 9, and 10 projects when their own restored dependency graph can be built. Supported providers are Microsoft SQL Server/Azure SQL and Npgsql PostgreSQL. Unsupported providers return an unverified provider result and exit `2`; EfGuard does not guess provider locking behavior.
+
+The compatibility fixture matrix exercises each supported EF/provider family:
+
+| EF Core | SQL Server/Azure SQL | PostgreSQL/Npgsql |
+| --- | --- | --- |
+| 8 | covered | covered |
+| 9 | covered | covered |
+| 10 | covered | covered |
+
+## Troubleshooting
+
+- **Project or `DbContext` discovery is ambiguous:** use `--project path/to/App.csproj`, `--startup-project path/to/App.Api.csproj`, and `--context AppDbContext`. When automatic discovery fails, the error identifies the missing or ambiguous selection and shows the corrective option shape.
+- **The design-time factory or context constructor fails:** run the same design-time path locally, keep it free of production connections and side effects, and ensure the selected startup project is restored and buildable. EfGuard executes that code in a bounded child process; a failure returns exit code `2`.
+- **The baseline Git reference cannot be read:** verify the ref exists locally, the selected project is present at that ref, and the repository has a usable Git checkout. Baseline extraction is isolated and never rewrites the active worktree; failure returns exit code `2`.
+- **Extraction times out or exceeds the output limit:** reduce the selected project/startup scope and design-time logging. Worker execution is bounded and response output is limited to 4 MiB; either condition is an untrustworthy extraction failure and returns exit code `2`.
+- **The provider is unsupported:** SQL Server/Azure SQL and PostgreSQL through Npgsql are supported in v1. Other providers produce EFG900 and exit code `2`; no provider-locking claim is inferred.
+- **The report contains `UNVERIFIED`:** inspect EFG399 or the provider diagnostic's uncertainty text. Unknown operations and provider findings without generated-SQL evidence fail closed and normally produce exit code `1`; review the migration and provider evidence before overriding policy.
+- **Configuration is malformed:** `efguard.json` must use version `1`, documented property names, known rule IDs, non-empty suppression reasons, and `yyyy-MM-dd` expiry dates. Unknown properties and rule IDs are rejected with an actionable error and exit code `2`.
+- **The exit code is unexpected:** `0` means a trustworthy clean result, `1` means a trustworthy blocking or unverified result, and `2` means analysis could not complete trustworthily. In CI, treat all non-zero codes as failures unless the job intentionally evaluates the JSON report.
+
+## Contracts and documentation
+
+- [JSON report and compatibility policy](docs/JSON-SCHEMA.md)
+- [Security policy](SECURITY.md)
+- [Privacy and shared telemetry contract](PRIVACY.md)
+- [Rule documentation](docs/rules/)
+- [Contributing](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## CI
 
@@ -125,6 +153,8 @@ On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. A gating job s
 ## Telemetry and privacy
 
 After a trustworthy scan, EfGuard uses `KeelMatrix.Telemetry` for one anonymous activation and at most one weekly heartbeat. Telemetry does not receive source, generated SQL, schema names, paths, project names, provider/EF versions, findings, or credentials. It is best effort and cannot change analysis. Disable it for local development and company CI with `KEELMATRIX_NO_TELEMETRY=1`.
+
+For repository validation with telemetry explicitly disabled, run `pwsh ./build/validate.ps1` on Windows or `./build/validate.sh` on Linux/macOS. This controlled path runs restore, Release build, tests, formatting, package-contract inspection, and an isolated installed-package consumer smoke test.
 
 ## License
 

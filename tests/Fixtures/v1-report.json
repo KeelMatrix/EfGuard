@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "toolVersion": "0.1.0",
+  "provider": "Microsoft.EntityFrameworkCore.SqlServer",
+  "providerSql": {
+    "available": false,
+    "engineVerified": false,
+    "source": "migration-operations",
+    "statements": []
+  },
+  "compatibility": {
+    "strategy": "rolling",
+    "minimumCompatibleVersions": 1,
+    "previousApplicationPreviousSchema": true,
+    "previousApplicationTargetSchema": true,
+    "currentApplicationPreviousSchema": true,
+    "currentApplicationTargetSchema": true,
+    "evaluatedStates": []
+  },
+  "baseline": {
+    "requested": false,
+    "available": false
+  },
+  "summary": {
+    "operationsInspected": 0,
+    "compatible": 0,
+    "advisory": 0,
+    "high": 0,
+    "blocking": 0,
+    "unverified": 0,
+    "exitCode": 0
+  },
+  "diagnostics": [],
+  "errors": []
+}

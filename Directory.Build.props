@@ -39,7 +39,24 @@
 
   <Target Name="RejectSensitiveFilesInPack" AfterTargets="_GetPackageFiles" Condition="'$(IsPackable)' == 'true'">
     <ItemGroup>
-      <_ForbiddenPackageFile Include="@(_PackageFiles)" Condition="'%(_PackageFiles.Filename)%(_PackageFiles.Extension)' == '.env' Or '%(_PackageFiles.Filename)%(_PackageFiles.Extension)' == '.env.local' Or '%(_PackageFiles.Filename)%(_PackageFiles.Extension)' == 'keelmatrix.telemetry.json' Or '%(_PackageFiles.Filename)%(_PackageFiles.Extension)' == 'AGENTS.md'" />
+      <_ForbiddenPackageFile Include="@(_PackageFiles)" Condition="
+        $([System.Text.RegularExpressions.Regex]::IsMatch('%(_PackageFiles.Filename)', '(?i)^\.env')) Or
+        $([System.Text.RegularExpressions.Regex]::IsMatch('%(_PackageFiles.Filename)', '(?i)^appsettings')) Or
+        $([System.Text.RegularExpressions.Regex]::IsMatch('%(_PackageFiles.Filename)', '(?i)^local\.settings')) Or
+        ('%(_PackageFiles.Extension)' == '.json' And $([System.Text.RegularExpressions.Regex]::IsMatch('%(_PackageFiles.Filename)', '(?i)^keelmatrix\.telemetry'))) Or
+        '%(_PackageFiles.Filename)' == 'AGENTS' Or
+        '%(_PackageFiles.Filename)' == 'global' Or
+        '%(_PackageFiles.Filename)' == 'NuGet' Or
+        '%(_PackageFiles.Filename)' == 'Directory.Build' Or
+        '%(_PackageFiles.Filename)' == 'Directory.Packages' Or
+        '%(_PackageFiles.Filename)' == '.editorconfig' Or
+        '%(_PackageFiles.Extension)' == '.user' Or
+        '%(_PackageFiles.Extension)' == '.suo' Or
+        '%(_PackageFiles.Extension)' == '.secret' Or
+        '%(_PackageFiles.Extension)' == '.key' Or
+        '%(_PackageFiles.Extension)' == '.pem' Or
+        '%(_PackageFiles.Extension)' == '.pfx' Or
+        '%(_PackageFiles.Extension)' == '.snk'" />
     </ItemGroup>
     <Error Condition="'@(_ForbiddenPackageFile)' != ''" Text="Sensitive or internal content cannot be packed: @(_ForbiddenPackageFile)" />
   </Target>

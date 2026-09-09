@@ -1,20 +1,11 @@
 ﻿using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using KeelMatrix.Telemetry;
 
 namespace KeelMatrix.EfGuard;
 
 internal static class Program
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
-    };
-
     internal static async Task<int> Main(string[] args)
     {
         CliOptions? options;
@@ -29,7 +20,7 @@ internal static class Program
         }
         catch (InvalidOperationException exception)
         {
-            return WriteError(exception.Message, args.Contains("--format") && args.Contains("json", StringComparer.OrdinalIgnoreCase));
+            return WriteError(exception.Message, RequestsJson(args));
         }
 
         if (!options.Command.Equals("check", StringComparison.OrdinalIgnoreCase))
@@ -75,7 +66,7 @@ internal static class Program
             TrackTelemetry();
 
         if (options.Format == OutputFormat.Json)
-            await Console.Out.WriteLineAsync(JsonSerializer.Serialize(report, JsonOptions)).ConfigureAwait(false);
+            await Console.Out.WriteLineAsync(ReportSerialization.Serialize(report)).ConfigureAwait(false);
         else
             await Console.Out.WriteLineAsync(FormatConsole(report)).ConfigureAwait(false);
         return report.Summary.ExitCode;
@@ -96,10 +87,19 @@ internal static class Program
     {
         Report report = new() { Errors = [message], Summary = new ReportSummary { ExitCode = 2 } };
         if (json)
-            Console.Out.WriteLine(JsonSerializer.Serialize(report, JsonOptions));
+            Console.Out.WriteLine(ReportSerialization.Serialize(report));
         else
             Console.Error.WriteLine($"EfGuard error: {message}");
         return 2;
+    }
+
+    private static bool RequestsJson(string[] args)
+    {
+        for (int index = 0; index < args.Length - 1; index++)
+            if (args[index].Equals("--format", StringComparison.OrdinalIgnoreCase)
+                && args[index + 1].Equals("json", StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
     }
 
     private static string FormatConsole(Report report)

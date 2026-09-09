@@ -1,0 +1,3 @@
+<Project>
+  <!-- Keep this repository's build graph independent of parent-directory MSBuild targets. -->
+</Project>

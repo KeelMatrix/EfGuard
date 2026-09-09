@@ -5,8 +5,11 @@ public sealed class ExtractionFixtureTests
 {
     [Theory]
     [InlineData("Ef8", "Microsoft.EntityFrameworkCore.SqlServer", "drop-column")]
+    [InlineData("Ef8Postgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "create-index")]
     [InlineData("Ef9", "Npgsql.EntityFrameworkCore.PostgreSQL", "create-index")]
+    [InlineData("Ef9SqlServer", "Microsoft.EntityFrameworkCore.SqlServer", "create-index")]
     [InlineData("Ef10", "Microsoft.EntityFrameworkCore.SqlServer", "add-column")]
+    [InlineData("Ef10Postgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "add-column")]
     public async Task SupportedEfFixtureIsExtractedOutOfProcess(string fixture, string provider, string operationKind)
     {
         string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));

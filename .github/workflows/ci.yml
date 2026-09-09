@@ -30,7 +30,7 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
-            8.0.x
+            8.0.424
             10.0.400
 
       - name: Verify telemetry opt-out
@@ -69,10 +69,22 @@ jobs:
             project: fixtures/Ef9/Ef9Fixture.csproj
             provider: Npgsql.EntityFrameworkCore.PostgreSQL
             migration: 20240202000000_AddIndex
+          - name: ef8-postgresql
+            project: fixtures/Ef8Postgres/Ef8PostgresFixture.csproj
+            provider: Npgsql.EntityFrameworkCore.PostgreSQL
+            migration: 20240102000000_AddIndex
+          - name: ef9-sqlserver
+            project: fixtures/Ef9SqlServer/Ef9SqlServerFixture.csproj
+            provider: Microsoft.EntityFrameworkCore.SqlServer
+            migration: 20240203000000_AddIndex
           - name: ef10-sqlserver
             project: fixtures/Ef10/Ef10Fixture.csproj
             provider: Microsoft.EntityFrameworkCore.SqlServer
             migration: 20240303000000_AddRequiredColumn
+          - name: ef10-postgresql
+            project: fixtures/Ef10Postgres/Ef10PostgresFixture.csproj
+            provider: Npgsql.EntityFrameworkCore.PostgreSQL
+            migration: 20240304000000_AddRequiredColumn
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -81,7 +93,7 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
-            8.0.x
+            8.0.424
             10.0.400
 
       - name: Verify telemetry opt-out
@@ -154,7 +166,7 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
-            8.0.x
+            8.0.424
             10.0.400
 
       - name: Verify telemetry opt-out
@@ -200,6 +212,16 @@ jobs:
           --include-symbols
           --p:SymbolPackageFormat=snupkg
           --output ./artifacts/packages
+
+      - name: Validate deterministic package contract
+        shell: pwsh
+        run: |
+          ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.0 -ExpectedCommit $env:GITHUB_SHA
+
+      - name: Validate isolated package consumer
+        shell: pwsh
+        run: |
+          ./build/Validate-PackageConsumer.ps1 -PackageDirectory ./artifacts/packages -Version 0.1.0 -WorkingDirectory $PWD
 
       - name: Verify package set and archive contents
         shell: pwsh
@@ -329,7 +351,7 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
-            8.0.x
+            8.0.424
             10.0.400
 
       - name: Verify telemetry opt-out

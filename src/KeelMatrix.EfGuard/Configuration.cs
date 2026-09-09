@@ -19,6 +19,17 @@ internal sealed class Suppression
     public DateOnly? Expires { get; init; }
 }
 
+internal static class RuleCatalog
+{
+    internal static readonly IReadOnlySet<string> KnownRuleIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "EFG101", "EFG102", "EFG201", "EFG202", "EFG204", "EFG301", "EFG302",
+        "EFG303", "EFG304", "EFG305", "EFG399", "EFG900", "EFG998"
+    };
+
+    internal static string FormatKnownRuleIds() => string.Join(", ", KnownRuleIds.Order(StringComparer.OrdinalIgnoreCase));
+}
+
 internal static class ConfigurationLoader
 {
     internal static GuardConfig Load(string path)
@@ -29,10 +40,26 @@ internal static class ConfigurationLoader
         if (new FileInfo(path).Length > 256 * 1024)
             throw new InvalidOperationException("Configuration file exceeds the 256 KB limit.");
 
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
-        JsonElement root = document.RootElement;
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(File.ReadAllText(path));
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidOperationException($"Configuration is not valid JSON: {exception.Message}");
+        }
+
+        using (document)
+            return LoadDocument(document.RootElement);
+    }
+
+    private static GuardConfig LoadDocument(JsonElement root)
+    {
         if (root.ValueKind != JsonValueKind.Object)
             throw new InvalidOperationException("Configuration must be a JSON object.");
+
+        RejectUnknownProperties(root, "version", "deployment", "rules", "suppressions");
 
         int version = ReadInt(root, "version", 1);
         if (version != 1)
@@ -43,6 +70,8 @@ internal static class ConfigurationLoader
         {
             if (deployment.ValueKind != JsonValueKind.Object)
                 throw new InvalidOperationException("deployment must be an object.");
+
+            RejectUnknownProperties(deployment, "strategy", "minimumCompatibleVersions");
 
             string strategy = ReadString(deployment, "strategy", "rolling");
             if (!strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase)
@@ -60,6 +89,9 @@ internal static class ConfigurationLoader
 
             foreach (JsonProperty rule in rules.EnumerateObject())
             {
+                EnsureKnownRule(rule.Name, "rules");
+                if (rule.Value.ValueKind != JsonValueKind.String)
+                    throw new InvalidOperationException($"Rule '{rule.Name}' severity must be a string.");
                 string? value = rule.Value.GetString();
                 if (string.Equals(value, "off", StringComparison.OrdinalIgnoreCase) || string.Equals(value, "none", StringComparison.OrdinalIgnoreCase))
                     result.DisabledRules.Add(rule.Name);
@@ -78,7 +110,10 @@ internal static class ConfigurationLoader
                 if (item.ValueKind != JsonValueKind.Object)
                     throw new InvalidOperationException("Each suppression must be an object.");
 
+                RejectUnknownProperties(item, "rule", "migration", "reason", "expires");
+
                 string rule = ReadRequiredString(item, "rule");
+                EnsureKnownRule(rule, "suppression");
                 string reason = ReadRequiredString(item, "reason");
                 string? migration = ReadOptionalString(item, "migration");
                 DateOnly? expires = null;
@@ -94,6 +129,20 @@ internal static class ConfigurationLoader
 
         RejectCredentialProperties(root);
         return result;
+    }
+
+    private static void RejectUnknownProperties(JsonElement element, params string[] allowed)
+    {
+        HashSet<string> names = allowed.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (JsonProperty property in element.EnumerateObject())
+            if (!names.Contains(property.Name))
+                throw new InvalidOperationException($"Unknown configuration property '{property.Name}'. Supported properties: {string.Join(", ", allowed)}.");
+    }
+
+    private static void EnsureKnownRule(string ruleId, string location)
+    {
+        if (!RuleCatalog.KnownRuleIds.Contains(ruleId))
+            throw new InvalidOperationException($"Unknown rule ID '{ruleId}' in {location}. Supported rule IDs: {RuleCatalog.FormatKnownRuleIds()}.");
     }
 
     private static void RejectCredentialProperties(JsonElement element)

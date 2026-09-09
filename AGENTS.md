@@ -18,6 +18,8 @@ dotnet format KeelMatrix.EfGuard.sln --verify-no-changes
 dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj -c Release --no-restore
 ```
 
+For the repository CI-equivalent validation path, use `pwsh ./build/validate.ps1` on Windows or `./build/validate.sh` on Linux/macOS. The scripts set `KEELMATRIX_NO_TELEMETRY=1`, run the release build/test/format gates, inspect the package contract, and install the freshly built package into an isolated consumer cache.
+
 The package is a net8.0 .NET tool named `efguard`. The worker is an implementation detail and must stay out-of-process from the CLI. Release builds are deterministic and warnings-as-errors for shipping projects.
 
 ## Invariants

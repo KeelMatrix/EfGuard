@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "deployment": {
+    "strategy": "rolling",
+    "minimumCompatibleVersions": 1
+  },
+  "rules": {
+    "EFG302": "error",
+    "EFG998": "warning"
+  },
+  "suppressions": [
+    {
+      "rule": "EFG399",
+      "migration": "20240101000000_CustomChange",
+      "reason": "The custom operation is reviewed in the deployment runbook.",
+      "expires": "2099-12-31"
+    }
+  ]
+}

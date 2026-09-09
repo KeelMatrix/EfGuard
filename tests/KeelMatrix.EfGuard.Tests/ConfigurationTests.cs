@@ -54,6 +54,57 @@ public sealed class ConfigurationTests
         finally { File.Delete(path); }
     }
 
+    [Fact]
+    public void UnknownTopLevelPropertyIsRejectedWithActionableMessage()
+    {
+        string path = Write("{\"version\":1,\"deplyoment\":{\"strategy\":\"rolling\"}}");
+        try
+        {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ConfigurationLoader.Load(path));
+            Assert.Contains("deplyoment", exception.Message);
+            Assert.Contains("deployment", exception.Message);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void UnknownRuleOverrideIsRejected()
+    {
+        string path = Write("{\"version\":1,\"rules\":{\"EFG301 typo\":\"error\"}}");
+        try
+        {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ConfigurationLoader.Load(path));
+            Assert.Contains("Unknown rule ID", exception.Message);
+            Assert.Contains("EFG301 typo", exception.Message);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void SuppressionForUnknownRuleIsRejected()
+    {
+        string path = Write("{\"version\":1,\"suppressions\":[{\"rule\":\"EFG999\",\"reason\":\"temporary\"}]}");
+        try
+        {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ConfigurationLoader.Load(path));
+            Assert.Contains("EFG999", exception.Message);
+            Assert.Contains("suppression", exception.Message);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void MalformedJsonIsRejectedWithConfigurationContext()
+    {
+        string path = Write("{\"version\":1");
+        try
+        {
+            InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ConfigurationLoader.Load(path));
+            Assert.StartsWith("Configuration is not valid JSON:", exception.Message);
+        }
+        finally { File.Delete(path); }
+    }
+
     private static string Write(string text)
     {
         string path = Path.Combine(Path.GetTempPath(), "efguard-test-" + Guid.NewGuid().ToString("N") + ".json");

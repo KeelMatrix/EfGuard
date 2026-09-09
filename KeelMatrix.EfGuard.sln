@@ -14,6 +14,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef9Fixture", "fixtures\Ef9\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef10Fixture", "fixtures\Ef10\Ef10Fixture.csproj", "{C2F2C4C3-B0CC-4143-DE9F-AC33F409F3AD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef8PostgresFixture", "fixtures\Ef8Postgres\Ef8PostgresFixture.csproj", "{D6B74E9F-3C22-4A65-AE4F-3F24BFCB6A01}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef9SqlServerFixture", "fixtures\Ef9SqlServer\Ef9SqlServerFixture.csproj", "{E7C85FA0-4D33-4B76-BF50-4A35C0DC7B12}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef10PostgresFixture", "fixtures\Ef10Postgres\Ef10PostgresFixture.csproj", "{F8D960B1-5E44-4C87-C061-5B46D0EC8C23}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef8CleanFixture", "fixtures\Ef8Clean\Ef8CleanFixture.csproj", "{A9EA71C2-6F55-4D98-D172-6C57E1FD9D34}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfFactoryFixture", "fixtures\EfFactory\EfFactoryFixture.csproj", "{E4F4E4F4-D5D5-46F6-A7A7-8B8B8B8B8B8B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EfFactoryStartup", "fixtures\EfFactoryStartup\EfFactoryStartup.csproj", "{F5F5F5F5-E6E6-47F7-B8B8-9C9C9C9C9C9C}"
@@ -50,6 +58,22 @@ Global
 		{C2F2C4C3-B0CC-4143-DE9F-AC33F409F3AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C2F2C4C3-B0CC-4143-DE9F-AC33F409F3AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C2F2C4C3-B0CC-4143-DE9F-AC33F409F3AD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D6B74E9F-3C22-4A65-AE4F-3F24BFCB6A01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D6B74E9F-3C22-4A65-AE4F-3F24BFCB6A01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D6B74E9F-3C22-4A65-AE4F-3F24BFCB6A01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D6B74E9F-3C22-4A65-AE4F-3F24BFCB6A01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E7C85FA0-4D33-4B76-BF50-4A35C0DC7B12}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E7C85FA0-4D33-4B76-BF50-4A35C0DC7B12}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E7C85FA0-4D33-4B76-BF50-4A35C0DC7B12}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E7C85FA0-4D33-4B76-BF50-4A35C0DC7B12}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F8D960B1-5E44-4C87-C061-5B46D0EC8C23}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F8D960B1-5E44-4C87-C061-5B46D0EC8C23}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F8D960B1-5E44-4C87-C061-5B46D0EC8C23}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F8D960B1-5E44-4C87-C061-5B46D0EC8C23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9EA71C2-6F55-4D98-D172-6C57E1FD9D34}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9EA71C2-6F55-4D98-D172-6C57E1FD9D34}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9EA71C2-6F55-4D98-D172-6C57E1FD9D34}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9EA71C2-6F55-4D98-D172-6C57E1FD9D34}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E4F4E4F4-D5D5-46F6-A7A7-8B8B8B8B8B8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E4F4E4F4-D5D5-46F6-A7A7-8B8B8B8B8B8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E4F4E4F4-D5D5-46F6-A7A7-8B8B8B8B8B8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
