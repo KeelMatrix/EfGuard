@@ -26,7 +26,9 @@ public sealed class CompatibilityFixtureTests
             ProviderSupported = true
         };
         Report report = Analyzer.Analyze(current, null, new GuardConfig(), null);
-        string expected = File.ReadAllText(FixturePath("v1-report.json")).TrimEnd();
+        string expected = File.ReadAllText(FixturePath("v1-report.json"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .TrimEnd();
 
         Assert.Equal(expected, ReportSerialization.Serialize(report));
     }
