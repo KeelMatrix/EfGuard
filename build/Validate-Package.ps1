@@ -54,6 +54,11 @@ function Read-BigEndianUInt32([byte[]] $Bytes, [int] $Offset) {
     return ([uint32]$Bytes[$Offset] -shl 24) -bor ([uint32]$Bytes[$Offset + 1] -shl 16) -bor ([uint32]$Bytes[$Offset + 2] -shl 8) -bor $Bytes[$Offset + 3]
 }
 
+function Invoke-Dotnet([string[]] $Arguments) {
+    & dotnet @Arguments
+    if ($LASTEXITCODE -ne 0) { Fail "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
+}
+
 $packageDirectory = [IO.Path]::GetFullPath($PackageDirectory)
 if (-not (Test-Path -LiteralPath $packageDirectory -PathType Container)) {
     Fail "package directory '$packageDirectory' does not exist."
@@ -153,5 +158,47 @@ try {
     Assert-True (@($symbolNames | Where-Object { $_ -match '(?i)\.(?:dll|deps\.json|runtimeconfig\.json)$' }).Count -eq 0) "symbol package contains runtime assets."
 }
 finally { $snupkg.Dispose() }
+
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$repeatRoot = Join-Path ([IO.Path]::GetTempPath()) ("efguard-repeat-pack-" + [Guid]::NewGuid().ToString("N"))
+$repeatOne = Join-Path $repeatRoot "one"
+$repeatTwo = Join-Path $repeatRoot "two"
+try {
+    New-Item -ItemType Directory -Path $repeatOne, $repeatTwo -Force | Out-Null
+    $packArguments = @(
+        "pack",
+        (Join-Path $repositoryRoot "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj"),
+        "--configuration", "Release",
+        "--no-build",
+        "--no-restore",
+        "--include-symbols",
+        "--p:SymbolPackageFormat=snupkg"
+    )
+    Push-Location $repositoryRoot
+    try {
+        Invoke-Dotnet @($packArguments + @("--output", $repeatOne))
+        Invoke-Dotnet @($packArguments + @("--output", $repeatTwo))
+    }
+    finally {
+        Pop-Location
+    }
+
+    foreach ($packageName in @(
+        "KeelMatrix.EfGuard.$ExpectedVersion.nupkg",
+        "KeelMatrix.EfGuard.$ExpectedVersion.snupkg"
+    )) {
+        $firstPath = Join-Path $repeatOne $packageName
+        $secondPath = Join-Path $repeatTwo $packageName
+        Assert-True (Test-Path -LiteralPath $firstPath -PathType Leaf) "repeat-pack output '$packageName' is missing from the first pack."
+        Assert-True (Test-Path -LiteralPath $secondPath -PathType Leaf) "repeat-pack output '$packageName' is missing from the second pack."
+        $firstHash = (Get-FileHash -LiteralPath $firstPath -Algorithm SHA256).Hash
+        $secondHash = (Get-FileHash -LiteralPath $secondPath -Algorithm SHA256).Hash
+        Assert-Equal $firstHash $secondHash "repeat-pack SHA-256 for $packageName"
+        Write-Output "Repeat-pack hash passed for $packageName ($firstHash)."
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $repeatRoot) { Remove-Item -LiteralPath $repeatRoot -Recurse -Force }
+}
 
 Write-Output "Package contract passed for KeelMatrix.EfGuard $ExpectedVersion at commit $ExpectedCommit."

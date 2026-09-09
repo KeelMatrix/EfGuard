@@ -90,6 +90,27 @@ public sealed class CliContractTests
         Assert.True(document.RootElement.GetProperty("baseline").GetProperty("available").GetBoolean());
     }
 
+    [Fact]
+    public async Task BuiltExecutableSupportsSeparateStartupProject()
+    {
+        ProcessResult result = await RunCliAsync([
+            "check",
+            "--project", "fixtures/EfFactory/EfFactoryFixture.csproj",
+            "--startup-project", "fixtures/EfFactoryStartup/EfFactoryStartup.csproj",
+            "--context", "FactoryDbContext",
+            "--format", "json"]);
+
+        Assert.Equal(1, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", document.RootElement.GetProperty("provider").GetString());
+        Assert.True(document.RootElement.GetProperty("providerSql").GetProperty("available").GetBoolean());
+        Assert.Equal(1, document.RootElement.GetProperty("summary").GetProperty("exitCode").GetInt32());
+        Assert.Contains(document.RootElement.GetProperty("diagnostics").EnumerateArray(), diagnostic => diagnostic.GetProperty("ruleId").GetString() == "EFG399");
+        Assert.Empty(document.RootElement.GetProperty("errors").EnumerateArray());
+        Assert.Empty(result.StandardError);
+    }
+
     private static async Task<ProcessResult> RunCliAsync(string[] arguments)
     {
         Environment.SetEnvironmentVariable("KEELMATRIX_NO_TELEMETRY", "1");
