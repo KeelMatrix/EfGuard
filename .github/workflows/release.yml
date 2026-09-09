@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  KEELMATRIX_NO_TELEMETRY: "1"
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Validate release tag
+        id: release-version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
+            throw "Malformed release tag '$tag'. Expected vX.Y.Z."
+          }
+
+          if ($Matches.version -ne '0.1.0') {
+            throw "Unsupported release version '$($Matches.version)'. This workflow currently prepares 0.1.0 only."
+          }
+
+          "version=$($Matches.version)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.400
+
+      - name: Restore from NuGet.org
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config --no-cache --force
+
+      - name: Build Release
+        run: >
+          dotnet build KeelMatrix.EfGuard.sln
+          --configuration Release
+          --no-restore
+          -p:Version=${{ steps.release-version.outputs.version }}
+
+      - name: Run full test suite
+        run: >
+          dotnet test KeelMatrix.EfGuard.sln
+          --configuration Release
+          --no-build
+          --no-restore
+
+      - name: Pack the solution
+        run: >
+          dotnet pack KeelMatrix.EfGuard.sln
+          --configuration Release
+          --no-build
+          --no-restore
+          --include-symbols
+          --p:SymbolPackageFormat=snupkg
+          -p:Version=${{ steps.release-version.outputs.version }}
+          --output ./artifacts/packages
+
+      - name: Validate release artifacts
+        shell: pwsh
+        run: |
+          $packageDirectory = Join-Path $PWD "artifacts/packages"
+          $expected = @(
+            "KeelMatrix.EfGuard.0.1.0.nupkg",
+            "KeelMatrix.EfGuard.0.1.0.snupkg"
+          ) | Sort-Object
+          $actual = @(Get-ChildItem -LiteralPath $packageDirectory -File | Select-Object -ExpandProperty Name | Sort-Object)
+
+          if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
+            throw "Unexpected release artifact set. Expected: $($expected -join ', '). Actual: $($actual -join ', ')."
+          }
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: efguard-release-packages
+          if-no-files-found: error
+          path: ./artifacts/packages/*
+
+      - name: Authenticate to NuGet.org
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: dmitriyzen
+
+      - name: Push package to NuGet.org
+        shell: pwsh
+        run: >
+          dotnet nuget push ./artifacts/packages/KeelMatrix.EfGuard.0.1.0.nupkg
+          --no-symbols
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+
+      - name: Push symbols to NuGet.org
+        shell: pwsh
+        run: >
+          dotnet nuget push ./artifacts/packages/KeelMatrix.EfGuard.0.1.0.snupkg
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
+          files: ./artifacts/packages/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
