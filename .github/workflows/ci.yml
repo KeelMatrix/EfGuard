@@ -1,0 +1,348 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ "*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  KEELMATRIX_NO_TELEMETRY: "1"
+
+jobs:
+  platform:
+    name: Platform / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, ubuntu-latest, macos-latest ]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.400
+
+      - name: Verify telemetry opt-out
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
+          }
+
+      - name: Restore
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+
+      - name: Build Release
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+
+      - name: Verify formatting and analyzers
+        run: dotnet format KeelMatrix.EfGuard.sln --verify-no-changes --no-restore
+
+      - name: Run full test suite
+        run: dotnet test KeelMatrix.EfGuard.sln --configuration Release --no-build --no-restore
+
+  provider-evidence:
+    name: Provider / ${{ matrix.name }}
+    needs: platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ef8-sqlserver
+            project: fixtures/Ef8/Ef8Fixture.csproj
+            provider: Microsoft.EntityFrameworkCore.SqlServer
+            migration: 20240101000000_RemoveLegacyCode
+          - name: ef9-npgsql
+            project: fixtures/Ef9/Ef9Fixture.csproj
+            provider: Npgsql.EntityFrameworkCore.PostgreSQL
+            migration: 20240202000000_AddIndex
+          - name: ef10-sqlserver
+            project: fixtures/Ef10/Ef10Fixture.csproj
+            provider: Microsoft.EntityFrameworkCore.SqlServer
+            migration: 20240303000000_AddRequiredColumn
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.400
+
+      - name: Verify telemetry opt-out
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
+          }
+
+      - name: Restore
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+
+      - name: Build Release
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+
+      - name: Inspect provider-generated SQL for ${{ matrix.name }}
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "efguard-${{ matrix.name }}.json"
+          & dotnet run --project src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj --configuration Release --no-build --no-restore -- check --project "${{ matrix.project }}" --format json 1> $reportPath
+          $status = $LASTEXITCODE
+
+          if ($status -notin @(0, 1)) {
+            throw "EfGuard fixture scan failed with unexpected exit code $status."
+          }
+
+          try {
+            $report = Get-Content -Raw $reportPath | ConvertFrom-Json
+          }
+          catch {
+            throw "EfGuard did not produce a valid JSON report: $($_.Exception.Message)"
+          }
+
+          if ($report.provider -ne "${{ matrix.provider }}") {
+            throw "Expected provider '${{ matrix.provider }}', got '$($report.provider)'."
+          }
+
+          if (-not $report.providerSql.available) {
+            throw "Provider-generated SQL evidence was not available for ${{ matrix.name }}."
+          }
+
+          $statements = @($report.providerSql.statements)
+          if ($statements.Count -eq 0) {
+            throw "Provider-generated SQL evidence had no statements for ${{ matrix.name }}."
+          }
+
+          if (-not (@($statements | Where-Object { $_.migration -eq "${{ matrix.migration }}" }).Count -gt 0)) {
+            throw "Expected migration '${{ matrix.migration }}' was not represented in provider SQL evidence."
+          }
+
+          "Provider: $($report.provider)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Generated SQL statements: $($statements.Count)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+  package:
+    name: Package / inspect and consume
+    needs: [ platform, provider-evidence ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.400
+
+      - name: Verify telemetry opt-out
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
+          }
+
+      - name: Snapshot telemetry state
+        shell: pwsh
+        run: |
+          function Get-TelemetryFiles {
+            $bases = @(
+              [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData),
+              [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData),
+              [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile),
+              [IO.Path]::GetTempPath()
+            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+            foreach ($base in $bases) {
+              $root = Join-Path $base "KeelMatrix/efguard"
+              if (Test-Path $root) {
+                Get-ChildItem -LiteralPath $root -Recurse -Force -File -ErrorAction SilentlyContinue |
+                  Select-Object -ExpandProperty FullName
+              }
+            }
+          }
+
+          @(Get-TelemetryFiles) | Set-Content -Path (Join-Path $env:RUNNER_TEMP "efguard-telemetry-before.txt") -Encoding utf8
+
+      - name: Restore
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+
+      - name: Build Release
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+
+      - name: Pack the intended package and symbols
+        run: >
+          dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj
+          --configuration Release
+          --no-build
+          --include-symbols
+          --p:SymbolPackageFormat=snupkg
+          --output ./artifacts/packages
+
+      - name: Verify package set and archive contents
+        shell: pwsh
+        run: |
+          $packageDirectory = Join-Path $PWD "artifacts/packages"
+          $expected = @(
+            "KeelMatrix.EfGuard.0.1.0.nupkg",
+            "KeelMatrix.EfGuard.0.1.0.snupkg"
+          ) | Sort-Object
+          $actual = @(Get-ChildItem -LiteralPath $packageDirectory -File | Select-Object -ExpandProperty Name | Sort-Object)
+
+          if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
+            throw "Unexpected package set. Expected: $($expected -join ', '). Actual: $($actual -join ', ')."
+          }
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $pathPattern = '(?i)(^|/)(AGENTS\.md|\.env(?:\.local)?|keelmatrix\.telemetry\.json|tests?|testresults|fixtures|artifacts|obj|bin|\.vs|\.vscode)(/|$)'
+          $textPattern = '(?i)((?:password|api[_-]?key|secret)\s*=|BEGIN (?:RSA|OPENSSH|EC) PRIVATE KEY|ghp_[A-Za-z0-9]+)'
+          $textExtensions = @('.nuspec', '.md', '.txt', '.json', '.xml', '.props', '.targets', '.cs', '.csproj')
+
+          foreach ($package in Get-ChildItem -LiteralPath $packageDirectory -File) {
+            $archive = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
+            try {
+              foreach ($entry in $archive.Entries) {
+                $entryName = $entry.FullName.Replace('\', '/')
+                if ($entryName -match $pathPattern) {
+                  throw "Forbidden package path '$entryName' found in $($package.Name)."
+                }
+
+                $extension = [IO.Path]::GetExtension($entryName)
+                if ($textExtensions -contains $extension.ToLowerInvariant() -and $entry.Length -gt 0) {
+                  $reader = [IO.StreamReader]::new($entry.Open())
+                  try {
+                    $content = $reader.ReadToEnd()
+                  }
+                  finally {
+                    $reader.Dispose()
+                  }
+
+                  if ($content -match $textPattern) {
+                    throw "Forbidden secret or internal-language text found in $($package.Name): $entryName."
+                  }
+                }
+              }
+            }
+            finally {
+              $archive.Dispose()
+            }
+          }
+
+      - name: Install and smoke-test the packed tool
+        shell: pwsh
+        run: |
+          dotnet tool install KeelMatrix.EfGuard --tool-path ./artifacts/tool --version 0.1.0 --add-source ./artifacts/packages --configfile ./NuGet.config --ignore-failed-sources
+          $tool = Join-Path $PWD "artifacts/tool/efguard"
+          if (-not (Test-Path $tool)) {
+            throw "The packed efguard tool was not installed at $tool."
+          }
+
+          $reportPath = Join-Path $PWD "artifacts/tool-report.json"
+          & $tool check --project fixtures/Ef9/Ef9Fixture.csproj --format json 1> $reportPath
+          $status = $LASTEXITCODE
+          if ($status -notin @(0, 1)) {
+            throw "The packed tool smoke test returned unexpected exit code $status."
+          }
+
+          $report = Get-Content -Raw $reportPath | ConvertFrom-Json
+          if ($report.provider -ne "Npgsql.EntityFrameworkCore.PostgreSQL" -or -not $report.providerSql.available) {
+            throw "The packed tool did not preserve Npgsql provider SQL evidence."
+          }
+
+      - name: Verify no telemetry activation was emitted
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY was not preserved for the package smoke test."
+          }
+
+          function Get-TelemetryFiles {
+            $bases = @(
+              [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData),
+              [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData),
+              [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile),
+              [IO.Path]::GetTempPath()
+            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+            foreach ($base in $bases) {
+              $root = Join-Path $base "KeelMatrix/efguard"
+              if (Test-Path $root) {
+                Get-ChildItem -LiteralPath $root -Recurse -Force -File -ErrorAction SilentlyContinue |
+                  Select-Object -ExpandProperty FullName
+              }
+            }
+          }
+
+          $beforePath = Join-Path $env:RUNNER_TEMP "efguard-telemetry-before.txt"
+          $before = @(Get-Content -LiteralPath $beforePath -ErrorAction SilentlyContinue)
+          $after = @(Get-TelemetryFiles)
+          $newFiles = @($after | Where-Object { $before -notcontains $_ })
+          if ($newFiles.Count -gt 0) {
+            throw "Telemetry state changed during CI: $($newFiles -join ', ')."
+          }
+
+      - name: Upload inspected packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: efguard-packages
+          if-no-files-found: error
+          path: |
+            ./artifacts/packages/KeelMatrix.EfGuard.0.1.0.nupkg
+            ./artifacts/packages/KeelMatrix.EfGuard.0.1.0.snupkg
+
+  dependency-audit:
+    name: Dependency vulnerability audit
+    needs: platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.400
+
+      - name: Verify telemetry opt-out
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
+          }
+
+      - name: Restore
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+
+      - name: Check for vulnerable dependencies
+        shell: pwsh
+        run: |
+          $report = (& dotnet list KeelMatrix.EfGuard.sln package --vulnerable --include-transitive 2>&1 | Out-String)
+          $status = $LASTEXITCODE
+          $report | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY
+
+          if ($status -ne 0) {
+            throw "The vulnerability command failed with exit code $status."
+          }
+
+          if ($report -match '(?im)has the following vulnerable package') {
+            throw "The dependency graph contains vulnerable packages."
+          }
