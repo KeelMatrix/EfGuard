@@ -101,11 +101,17 @@ jobs:
         shell: pwsh
         run: |
           $reportPath = Join-Path $env:RUNNER_TEMP "efguard-${{ matrix.name }}.json"
-          & dotnet run --project src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj --configuration Release --no-build --no-restore -- check --project "${{ matrix.project }}" --format json 1> $reportPath
-          $status = $LASTEXITCODE
+          $errorPath = Join-Path $env:RUNNER_TEMP "efguard-${{ matrix.name }}.stderr"
+          $process = Start-Process -FilePath dotnet -ArgumentList @(
+            "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
+            "--configuration", "Release", "--no-build", "--no-restore", "--",
+            "check", "--project", "${{ matrix.project }}", "--format", "json"
+          ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
+          $status = $process.ExitCode
 
           if ($status -notin @(0, 1)) {
-            throw "EfGuard fixture scan failed with unexpected exit code $status."
+            $error = Get-Content -Raw $errorPath -ErrorAction SilentlyContinue
+            throw "EfGuard fixture scan failed with unexpected exit code $status. $error"
           }
 
           try {
@@ -254,10 +260,14 @@ jobs:
           }
 
           $reportPath = Join-Path $PWD "artifacts/tool-report.json"
-          & $tool check --project fixtures/Ef9/Ef9Fixture.csproj --format json 1> $reportPath
-          $status = $LASTEXITCODE
+          $errorPath = Join-Path $PWD "artifacts/tool-report.stderr"
+          $process = Start-Process -FilePath $tool -ArgumentList @(
+            "check", "--project", "fixtures/Ef9/Ef9Fixture.csproj", "--format", "json"
+          ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
+          $status = $process.ExitCode
           if ($status -notin @(0, 1)) {
-            throw "The packed tool smoke test returned unexpected exit code $status."
+            $error = Get-Content -Raw $errorPath -ErrorAction SilentlyContinue
+            throw "The packed tool smoke test returned unexpected exit code $status. $error"
           }
 
           $report = Get-Content -Raw $reportPath | ConvertFrom-Json
