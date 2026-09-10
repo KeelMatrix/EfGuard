@@ -40,7 +40,11 @@ public sealed class AuditEntry
 [Migration("20240505000000_AddFactoryIndex")]
 public sealed class AddFactoryIndex : Migration
 {
-    protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.CreateIndex("IX_Orders_Code", "Orders", ["Code"], unique: true);
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.CreateIndex("IX_Orders_Code", "Orders", ["Code"], unique: true);
+        migrationBuilder.Sql("UPDATE [Orders] SET [Code] = 'generated' WHERE [Id] > 0");
+    }
     protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropIndex("IX_Orders_Code", "Orders");
 }
 

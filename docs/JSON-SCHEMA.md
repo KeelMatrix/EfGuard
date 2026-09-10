@@ -5,7 +5,7 @@
 - `schemaVersion`: integer `1`.
 - `toolVersion`: tool version.
 - `provider`: provider identity when extraction succeeded.
-- `providerSql`: `available`, `engineVerified`, `source`, and generated migration SQL `statements` when the provider exposes migration SQL generation. SQL is local report evidence and is never sent through telemetry.
+- `providerSql`: `available`, `engineVerified`, `source`, and generated migration SQL `statements` when the provider exposes migration SQL generation. Each statement contains `migration`, `operationIndex`, and `sql`; provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. SQL is local report evidence and is never sent through telemetry.
 - `compatibility`: the configured `strategy`, `minimumCompatibleVersions`, all four model-state booleans, and the states evaluated for blocking verdicts.
 - `baseline`: `requested`, `reference`, and `available`.
 - `summary`: operation and severity counts plus `exitCode`.

@@ -230,8 +230,8 @@ internal static class Program
                     continue;
                 List<object> rawOperations = enumerable.Cast<object>().ToList();
                 rawMigrations.Add((migrationId, rawOperations));
-                foreach (object operation in rawOperations)
-                    result.Add(Normalize(operation, migrationId));
+                foreach ((object operation, int index) in rawOperations.Select((operation, index) => (operation, index)))
+                    result.Add(Normalize(operation, migrationId, index));
             }
             catch
             {
@@ -242,10 +242,10 @@ internal static class Program
         return result;
     }
 
-    private static NormalizedOperation Normalize(object operation, string migrationId)
+    private static NormalizedOperation Normalize(object operation, string migrationId, int operationIndex)
     {
         string type = operation.GetType().Name;
-        NormalizedOperation result = new() { Migration = migrationId };
+        NormalizedOperation result = new() { Migration = migrationId, OperationIndex = operationIndex };
         if (type.EndsWith("DropColumnOperation", StringComparison.Ordinal))
         {
             result.Kind = "drop-column"; FillTableColumn(result, operation); return result;
@@ -289,7 +289,7 @@ internal static class Program
         {
             result.SuppressTransaction = Reflection.Bool(operation, "SuppressTransaction");
             string? sql = Reflection.String(operation, "Sql");
-            result.Kind = result.SuppressTransaction ? "sql-suppressed-transaction" : ClassifySql(sql);
+            result.Kind = ClassifySql(sql);
             result.SqlShape = sql is not null && Regex.IsMatch(sql, @"\bUPDATE\b", RegexOptions.IgnoreCase) ? "update" : "sql";
             return result;
         }
@@ -336,28 +336,31 @@ internal static class Program
 
             foreach ((string migration, List<object> operations) in migrations)
             {
-                try
+                foreach ((object operation, int operationIndex) in operations.Select((operation, index) => (operation, index)))
                 {
-                    object? typedOperations = CreateOperationList(generate.GetParameters()[0].ParameterType, operations);
-                    if (typedOperations is null)
-                        continue;
-                    object?[] arguments = new object?[generate.GetParameters().Length];
-                    arguments[0] = typedOperations;
-                    if (arguments.Length > 1)
-                        arguments[1] = model;
-                    for (int index = 2; index < arguments.Length; index++)
-                        arguments[index] = generate.GetParameters()[index].ParameterType.IsValueType ? Activator.CreateInstance(generate.GetParameters()[index].ParameterType) : null;
-                    object? commands = generate.Invoke(generator, arguments);
-                    if (commands is not System.Collections.IEnumerable enumerable)
-                        continue;
-                    foreach (object command in enumerable.Cast<object>())
+                    try
                     {
-                        string? sql = Reflection.String(command, "CommandText") ?? Reflection.String(command, "Text");
-                        if (!string.IsNullOrWhiteSpace(sql))
-                            evidence.Statements.Add(new ProviderSqlStatement { Migration = migration, Sql = sql });
+                        object? typedOperations = CreateOperationList(generate.GetParameters()[0].ParameterType, [operation]);
+                        if (typedOperations is null)
+                            continue;
+                        object?[] arguments = new object?[generate.GetParameters().Length];
+                        arguments[0] = typedOperations;
+                        if (arguments.Length > 1)
+                            arguments[1] = model;
+                        for (int index = 2; index < arguments.Length; index++)
+                            arguments[index] = generate.GetParameters()[index].ParameterType.IsValueType ? Activator.CreateInstance(generate.GetParameters()[index].ParameterType) : null;
+                        object? commands = generate.Invoke(generator, arguments);
+                        if (commands is not System.Collections.IEnumerable enumerable)
+                            continue;
+                        foreach (object command in enumerable.Cast<object>())
+                        {
+                            string? sql = Reflection.String(command, "CommandText") ?? Reflection.String(command, "Text");
+                            if (!string.IsNullOrWhiteSpace(sql))
+                                evidence.Statements.Add(new ProviderSqlStatement { Migration = migration, OperationIndex = operationIndex, Sql = sql });
+                        }
                     }
+                    catch { }
                 }
-                catch { }
             }
             evidence.Available = evidence.Statements.Count > 0;
         }

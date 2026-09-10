@@ -218,6 +218,11 @@ jobs:
         run: |
           ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.0 -ExpectedCommit $env:GITHUB_SHA
 
+      - name: Verify unexpected archive entries fail closed
+        shell: pwsh
+        run: |
+          ./build/Test-Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.0 -ExpectedCommit $env:GITHUB_SHA
+
       - name: Validate isolated package consumer
         shell: pwsh
         run: |

@@ -32,6 +32,9 @@ try {
     & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
     if ($LASTEXITCODE -ne 0) { throw "package contract validation failed." }
 
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
+    if ($LASTEXITCODE -ne 0) { throw "negative package contract validation failed." }
+
     & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-PackageConsumer.ps1") -PackageDirectory $packageDirectory -Version $Version -WorkingDirectory $repositoryRoot
     if ($LASTEXITCODE -ne 0) { throw "isolated package consumer validation failed." }
 

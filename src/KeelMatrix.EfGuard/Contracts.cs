@@ -34,6 +34,7 @@ internal sealed class ProviderSqlEvidence
 internal sealed class ProviderSqlStatement
 {
     public string? Migration { get; set; }
+    public int? OperationIndex { get; set; }
     public string Sql { get; set; } = "";
 }
 
@@ -64,6 +65,7 @@ internal sealed class NormalizedOperation
 {
     public string Kind { get; set; } = "";
     public string? Migration { get; set; }
+    public int? OperationIndex { get; set; }
     public string? Schema { get; set; }
     public string? Table { get; set; }
     public string? NewTable { get; set; }

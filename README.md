@@ -48,7 +48,7 @@ The tool executes the selected project's normal design-time context construction
 
 Use `--format json` for automation. JSON has `schemaVersion: 1`, `provider`, `providerSql`, `compatibility`, `baseline`, `summary`, `diagnostics`, and `errors`. Each diagnostic contains `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, optional provider/migration/location, `affectedState`, `explanation`, `remediation`, and `uncertainty`.
 
-`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. It is local evidence only: `engineVerified` remains false unless a real database-engine integration gate has verified the behavior. A provider-locking diagnostic without matching generated-SQL evidence is reported as `UNVERIFIED` rather than as a high-confidence claim.
+`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. Each statement carries its migration and operation ordinal, and provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. It is local evidence only: `engineVerified` remains false unless a real database-engine integration gate has verified the behavior. A provider-locking diagnostic without matching generated-SQL evidence is reported as `UNVERIFIED` rather than as a high-confidence claim.
 
 ## Configuration and suppressions
 
@@ -95,7 +95,7 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 | [EFG900](docs/rules/EFG900.md) | Unsupported database provider | UNVERIFIED | provider |
 | [EFG998](docs/rules/EFG998.md) | Expired suppression | BLOCK | configuration |
 
-Unknown operations, raw SQL, and custom operations are never silently treated as safe. SQL is classified locally and is not included in telemetry. Provider lock behavior depends on engine version, capabilities, and workload; EfGuard cannot guarantee zero downtime.
+Unknown operations, raw SQL, and custom operations are never silently treated as safe. Transaction suppression is an independent risk dimension: arbitrary SQL retains EFG399 and may also report EFG305, while a classified unbounded backfill may report EFG304 and EFG305 together. SQL is classified locally and is not included in telemetry. Provider lock behavior depends on engine version, capabilities, and workload; EfGuard cannot guarantee zero downtime.
 
 ## Rollout guidance
 

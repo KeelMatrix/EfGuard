@@ -38,7 +38,10 @@ public sealed class ExtractionFixtureTests
         Assert.Contains(result.Operations, operation => operation.Kind == "raw-sql");
         Assert.Contains(result.Operations, operation => operation.Kind == "custom-operation");
         Assert.True(result.ProviderSql.Available);
-        Assert.Contains(result.ProviderSql.Statements, statement => statement.Migration == "20240505000000_AddFactoryIndex");
+        Assert.Contains(result.Operations, operation => operation.Migration == "20240505000000_AddFactoryIndex" && operation.Kind == "create-index" && operation.OperationIndex == 0);
+        Assert.Contains(result.Operations, operation => operation.Migration == "20240505000000_AddFactoryIndex" && operation.Kind == "raw-sql" && operation.OperationIndex == 1);
+        Assert.Contains(result.ProviderSql.Statements, statement => statement.Migration == "20240505000000_AddFactoryIndex" && statement.OperationIndex == 0 && statement.Sql.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.ProviderSql.Statements, statement => statement.Migration == "20240505000000_AddFactoryIndex" && statement.OperationIndex == 1 && statement.Sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

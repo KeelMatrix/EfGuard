@@ -14,6 +14,8 @@ env:
 jobs:
   validate:
     name: Validate tagged candidate
+    outputs:
+      version: ${{ steps.release-version.outputs.version }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -72,6 +74,11 @@ jobs:
         run: |
           ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion ${{ steps.release-version.outputs.version }} -ExpectedCommit $env:GITHUB_SHA
 
+      - name: Verify unexpected archive entries fail closed
+        shell: pwsh
+        run: |
+          ./build/Test-Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion ${{ steps.release-version.outputs.version }} -ExpectedCommit $env:GITHUB_SHA
+
       - name: Validate isolated package consumer
         shell: pwsh
         run: |
@@ -83,3 +90,52 @@ jobs:
           name: efguard-release-candidate-packages
           if-no-files-found: error
           path: ./artifacts/packages/*
+
+  publish:
+    name: Publish validated packages
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download validated packages
+        uses: actions/download-artifact@v7
+        with:
+          name: efguard-release-candidate-packages
+          path: ./artifacts/packages
+
+      - name: Verify exact publication set
+        shell: pwsh
+        run: |
+          $expected = @(
+            "KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.nupkg",
+            "KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.snupkg"
+          ) | Sort-Object
+          $actual = @(Get-ChildItem -LiteralPath ./artifacts/packages -File | Select-Object -ExpandProperty Name | Sort-Object)
+          if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
+            throw "Refusing to publish an unexpected package set. Expected: $($expected -join ', '). Actual: $($actual -join ', ')."
+          }
+
+      - name: Authenticate to NuGet.org
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: dmitriyzen
+
+      - name: Publish exact package
+        shell: bash
+        run: >-
+          dotnet nuget push
+          "./artifacts/packages/KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.nupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+
+      - name: Publish exact symbol package
+        shell: bash
+        run: >-
+          dotnet nuget push
+          "./artifacts/packages/KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.snupkg"
+          --source https://api.nuget.org/v3/index.json
+          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"

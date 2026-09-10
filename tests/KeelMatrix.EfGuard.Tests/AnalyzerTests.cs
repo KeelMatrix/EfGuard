@@ -53,17 +53,62 @@ public sealed class AnalyzerTests
     [Fact]
     public void ProviderRuleConsumesRetainedMigrationSqlEvidence()
     {
-        ExtractionResult current = Current(new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Index" }, "Npgsql.EntityFrameworkCore.PostgreSQL");
+        ExtractionResult current = Current(new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Index", OperationIndex = 0 }, "Npgsql.EntityFrameworkCore.PostgreSQL");
         current.ProviderSql = new ProviderSqlEvidence
         {
             Available = true,
-            Statements = [new ProviderSqlStatement { Migration = "20240201_Index", Sql = "CREATE INDEX ..." }]
+            Statements = [new ProviderSqlStatement { Migration = "20240201_Index", OperationIndex = 0, Sql = "CREATE INDEX [IX_Orders_Id] ON [Orders] ([Id])" }]
         };
 
         Report report = Analyzer.Analyze(current, null, new GuardConfig(), null);
 
         Assert.True(report.ProviderSql.Available);
         Assert.Contains(report.Diagnostics, d => d.RuleId == "EFG302" && d.Severity == FindingSeverity.High && d.Confidence == FindingConfidence.High);
+    }
+
+    [Fact]
+    public void ProviderRuleDoesNotUseSqlFromAnotherOperationInTheSameMigration()
+    {
+        ExtractionResult current = Current([
+            new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Mixed", OperationIndex = 0 },
+            new NormalizedOperation { Kind = "raw-sql", Table = "Orders", Migration = "20240201_Mixed", OperationIndex = 1 }
+        ], "Npgsql.EntityFrameworkCore.PostgreSQL");
+        current.ProviderSql = new ProviderSqlEvidence
+        {
+            Available = true,
+            Statements = [new ProviderSqlStatement { Migration = "20240201_Mixed", OperationIndex = 1, Sql = "CREATE INDEX [IX_Orders_Id] ON [Orders] ([Id])" }]
+        };
+
+        Report report = Analyzer.Analyze(current, null, new GuardConfig(), null);
+
+        Diagnostic providerFinding = Assert.Single(report.Diagnostics, d => d.RuleId == "EFG302");
+        Assert.Equal(FindingSeverity.Unverified, providerFinding.Severity);
+        Assert.Equal(FindingConfidence.Unknown, providerFinding.Confidence);
+    }
+
+    [Fact]
+    public void ProviderRuleRejectsMissingAmbiguousAndUnmatchableOperationEvidence()
+    {
+        foreach (ProviderSqlStatement[] statements in new[]
+        {
+            new[] { new ProviderSqlStatement { Migration = "20240201_Index", Sql = "CREATE INDEX [IX_Orders_Id] ON [Orders] ([Id])" } },
+            new[]
+            {
+                new ProviderSqlStatement { Migration = "20240201_Index", OperationIndex = 0, Sql = "CREATE INDEX [IX_Orders_Id] ON [Orders] ([Id])" },
+                new ProviderSqlStatement { Migration = "20240201_Index", OperationIndex = 0, Sql = "CREATE INDEX [IX_Orders_Other] ON [Orders] ([Id])" }
+            },
+            new[] { new ProviderSqlStatement { Migration = "20240201_Index", OperationIndex = 0, Sql = "ALTER TABLE [Orders] ADD [Code] nvarchar(32)" } }
+        })
+        {
+            ExtractionResult current = Current(new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Index", OperationIndex = 0 }, "Npgsql.EntityFrameworkCore.PostgreSQL");
+            current.ProviderSql = new ProviderSqlEvidence { Available = true, Statements = statements.ToList() };
+
+            Report report = Analyzer.Analyze(current, null, new GuardConfig(), null);
+
+            Diagnostic providerFinding = Assert.Single(report.Diagnostics, d => d.RuleId == "EFG302");
+            Assert.Equal(FindingSeverity.Unverified, providerFinding.Severity);
+            Assert.Equal(FindingConfidence.Unknown, providerFinding.Confidence);
+        }
     }
 
     [Fact]
@@ -357,11 +402,19 @@ public sealed class AnalyzerTests
         Assert.Equal(FindingConfidence.High, backfillFinding.Confidence);
         Assert.NotEmpty(backfillFinding.Remediation);
 
-        Report suppressedTransaction = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "sql-suppressed-transaction", Table = "Orders" }), null, new GuardConfig(), null);
+        Report suppressedTransaction = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "raw-sql", Table = "Orders", SuppressTransaction = true }), null, new GuardConfig(), null);
+        Diagnostic unknownFinding = Assert.Single(suppressedTransaction.Diagnostics, d => d.RuleId == "EFG399");
+        Assert.Equal(FindingSeverity.Unverified, unknownFinding.Severity);
+        Assert.Equal(FindingConfidence.Unknown, unknownFinding.Confidence);
         Diagnostic transactionFinding = Assert.Single(suppressedTransaction.Diagnostics, d => d.RuleId == "EFG305");
         Assert.Equal(FindingSeverity.High, transactionFinding.Severity);
         Assert.Equal(FindingConfidence.High, transactionFinding.Confidence);
         Assert.NotEmpty(transactionFinding.Remediation);
+        Assert.Equal(1, suppressedTransaction.Summary.ExitCode);
+
+        Report suppressedBackfill = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "sql-backfill", Table = "Orders", SuppressTransaction = true }), null, new GuardConfig(), null);
+        Assert.Contains(suppressedBackfill.Diagnostics, d => d.RuleId == "EFG304");
+        Assert.Contains(suppressedBackfill.Diagnostics, d => d.RuleId == "EFG305");
 
         Report bounded = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "raw-sql", Table = "Orders" }), null, new GuardConfig(), null);
         Assert.DoesNotContain(bounded.Diagnostics, d => d.RuleId == "EFG304");

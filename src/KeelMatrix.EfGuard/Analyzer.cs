@@ -1,4 +1,6 @@
-﻿namespace KeelMatrix.EfGuard;
+﻿using System.Text.RegularExpressions;
+
+namespace KeelMatrix.EfGuard;
 
 internal static class Analyzer
 {
@@ -294,13 +296,7 @@ internal static class Analyzer
                     "A migration contains an UPDATE-shaped operation without a detectable WHERE clause.",
                     "Move the backfill to bounded, resumable application or operational work with progress and throttling.",
                     "SQL is classified locally; the tool does not execute or transmit it."));
-                break;
-            case "sql-suppressed-transaction":
-                findings.Add(Create("EFG305", "Transaction semantics require review", FindingSeverity.High, FindingConfidence.High,
-                    ["blocking", "provider"], provider, op.Migration, Location(op),
-                    "A migration operation suppresses its transaction.",
-                    "Confirm why the operation requires transaction suppression and isolate it from changes that must be atomic.",
-                    "The tool cannot prove whether the provider and deployment process make the split safe."));
+                AddTransactionSuppressionFinding(findings, op, provider);
                 break;
             case "raw-sql":
             case "custom-operation":
@@ -309,6 +305,15 @@ internal static class Analyzer
                     "The migration contains SQL or a custom operation that EfGuard cannot analyze with high confidence.",
                     "Review the generated SQL and rollout order manually; keep the operation outside the contract step unless its compatibility is proven.",
                     "Unknown operations are never treated as safe."));
+                AddTransactionSuppressionFinding(findings, op, provider);
+                break;
+            case "sql-suppressed-transaction":
+                findings.Add(Create("EFG399", "Unverified migration operation", FindingSeverity.Unverified, FindingConfidence.Unknown,
+                    ["compatibility", "provider"], provider, op.Migration, Location(op),
+                    "The migration contains SQL whose semantics were not retained by the extractor.",
+                    "Review the generated SQL and rollout order manually; keep the operation outside the contract step unless its compatibility is proven.",
+                    "Unknown operations are never treated as safe."));
+                AddTransactionSuppressionFinding(findings, op, provider);
                 break;
         }
 
@@ -317,12 +322,46 @@ internal static class Analyzer
 
     private static Diagnostic CreateProviderFinding(string ruleId, string title, string provider, NormalizedOperation operation, ProviderSqlEvidence evidence, string explanation, string remediation, List<string> risks)
     {
-        bool hasEvidence = evidence.Available && evidence.Statements.Any(statement => operation.Migration is null || statement.Migration is null || statement.Migration.Equals(operation.Migration, StringComparison.OrdinalIgnoreCase));
+        List<ProviderSqlStatement> operationEvidence = evidence.Available
+            && operation.Migration is not null
+            && operation.OperationIndex is not null
+            ? evidence.Statements.Where(statement =>
+                statement.Migration is not null
+                && statement.Migration.Equals(operation.Migration, StringComparison.OrdinalIgnoreCase)
+                && statement.OperationIndex == operation.OperationIndex).ToList()
+            : [];
+        bool hasEvidence = operationEvidence.Count == 1 && MatchesProviderSqlShape(operation, operationEvidence[0].Sql);
         return Create(ruleId, title, hasEvidence ? FindingSeverity.High : FindingSeverity.Unverified, hasEvidence ? FindingConfidence.High : FindingConfidence.Unknown,
             risks, provider, operation.Migration, Location(operation), explanation, remediation,
             hasEvidence
                 ? "Provider-generated migration SQL is retained as evidence, but runtime lock duration still depends on engine version, capabilities, workload, and deployment conditions."
                 : "Provider-generated SQL for the migration operations under review was not available, so this provider-specific claim is explicitly unverified.");
+    }
+
+    private static void AddTransactionSuppressionFinding(List<Diagnostic> findings, NormalizedOperation operation, string provider)
+    {
+        if (!operation.SuppressTransaction)
+            return;
+
+        findings.Add(Create("EFG305", "Transaction semantics require review", FindingSeverity.High, FindingConfidence.High,
+            ["blocking", "provider"], provider, operation.Migration, Location(operation),
+            "A migration operation suppresses its transaction.",
+            "Confirm why the operation requires transaction suppression and isolate it from changes that must be atomic.",
+            "The tool cannot prove whether the provider and deployment process make the split safe."));
+    }
+
+    private static bool MatchesProviderSqlShape(NormalizedOperation operation, string sql)
+    {
+        if (!operation.Kind.Equals("create-index", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(operation.Table))
+            return false;
+
+        string normalizedSql = Regex.Replace(sql, "[\\[\\]\\\"`\\r\\n]", " ");
+        string indexPattern = operation.IsUnique ? @"\bCREATE\s+UNIQUE\s+INDEX\b" : @"\bCREATE\s+INDEX\b";
+        if (!Regex.IsMatch(normalizedSql, indexPattern, RegexOptions.IgnoreCase))
+            return false;
+
+        string table = Regex.Escape(operation.Table.Contains('.', StringComparison.Ordinal) ? operation.Table[(operation.Table.LastIndexOf('.') + 1)..] : operation.Table);
+        return Regex.IsMatch(normalizedSql, $@"(?<![A-Za-z0-9_]){table}(?![A-Za-z0-9_])", RegexOptions.IgnoreCase);
     }
 
     private static Diagnostic Create(string ruleId, string title, FindingSeverity severity, FindingConfidence confidence,

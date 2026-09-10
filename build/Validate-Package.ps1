@@ -54,6 +54,17 @@ function Read-BigEndianUInt32([byte[]] $Bytes, [int] $Offset) {
     return ([uint32]$Bytes[$Offset] -shl 24) -bor ([uint32]$Bytes[$Offset + 1] -shl 16) -bor ([uint32]$Bytes[$Offset + 2] -shl 8) -bor $Bytes[$Offset + 3]
 }
 
+function Assert-ExactArchiveEntries([System.IO.Compression.ZipArchive] $Archive, [string[]] $Expected, [string] $PackageName) {
+    $actual = @($Archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') } | Sort-Object)
+    $expectedSorted = @($Expected | Sort-Object)
+    $differences = @(Compare-Object -ReferenceObject $expectedSorted -DifferenceObject $actual)
+    if ($differences.Count -ne 0) {
+        $actualText = if ($actual.Count -eq 0) { '(none)' } else { $actual -join ', ' }
+        $expectedText = $expectedSorted -join ', '
+        Fail "archive entry allowlist failed for '$PackageName'. Expected: $expectedText. Actual: $actualText."
+    }
+}
+
 function Invoke-Dotnet([string[]] $Arguments) {
     & dotnet @Arguments
     if ($LASTEXITCODE -ne 0) { Fail "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
@@ -84,10 +95,28 @@ $snupkgPath = Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.s
 $nupkg = [IO.Compression.ZipFile]::OpenRead($nupkgPath)
 try {
     $entryNames = @($nupkg.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
-    $forbiddenPath = '(?i)(^|/)(?:\.env(?:\.[^/]+)?|keelmatrix\.telemetry(?:\.[^/]+)?\.json|AGENTS\.md|global\.json|NuGet\.config|appsettings(?:\.[^/]+)?\.json|local\.settings\.json|tests?(?:/|$)|fixtures(?:/|$)|testresults(?:/|$)|artifacts(?:/|$)|obj(?:/|$)|bin(?:/|$)|\.vs(?:/|$)|\.vscode(?:/|$)|\.idea(?:/|$)|(?:[^/]+\.(?:user|suo|log|cache|key|pem|pfx|snk)))'
-    foreach ($entryName in $entryNames) {
-        if ($entryName -match $forbiddenPath) { Fail "forbidden package path '$entryName'." }
-    }
+    Assert-ExactArchiveEntries $nupkg @(
+        "_rels/.rels",
+        "[Content_Types].xml",
+        "icon.png",
+        "KeelMatrix.EfGuard.nuspec",
+        "LICENSE",
+        "package/services/metadata/core-properties/nuget.psmdcp",
+        "README.md",
+        "tools/net8.0/any/DotnetToolSettings.xml",
+        "tools/net8.0/any/KeelMatrix.EfGuard.deps.json",
+        "tools/net8.0/any/KeelMatrix.EfGuard.dll",
+        "tools/net8.0/any/KeelMatrix.EfGuard.pdb",
+        "tools/net8.0/any/KeelMatrix.EfGuard.runtimeconfig.json",
+        "tools/net8.0/any/KeelMatrix.EfGuard.Worker.deps.json",
+        "tools/net8.0/any/KeelMatrix.EfGuard.Worker.dll",
+        "tools/net8.0/any/KeelMatrix.EfGuard.Worker.runtimeconfig.json",
+        "tools/net8.0/any/KeelMatrix.EfGuard.xml",
+        "tools/net8.0/any/KeelMatrix.Telemetry.dll",
+        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.deps.json",
+        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.dll",
+        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
+    ) "$(Split-Path -Leaf $nupkgPath)"
 
     foreach ($entryName in $entryNames | Where-Object { $_ -match '(?i)\.(?:nuspec|md|txt|json|xml|props|targets|cs|csproj)$' }) {
         $content = Read-EntryText $nupkg $entryName
@@ -154,6 +183,13 @@ finally { $nupkg.Dispose() }
 $snupkg = [IO.Compression.ZipFile]::OpenRead($snupkgPath)
 try {
     $symbolNames = @($snupkg.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+    Assert-ExactArchiveEntries $snupkg @(
+        "_rels/.rels",
+        "[Content_Types].xml",
+        "KeelMatrix.EfGuard.nuspec",
+        "package/services/metadata/core-properties/nuget.psmdcp",
+        "tools/net8.0/any/KeelMatrix.EfGuard.pdb"
+    ) "$(Split-Path -Leaf $snupkgPath)"
     Assert-True (@($symbolNames | Where-Object { $_ -match '(?i)\.pdb$' }).Count -gt 0) "symbol package does not contain PDB files."
     Assert-True (@($symbolNames | Where-Object { $_ -match '(?i)\.(?:dll|deps\.json|runtimeconfig\.json)$' }).Count -eq 0) "symbol package contains runtime assets."
 }
