@@ -25,8 +25,10 @@ jobs:
       - name: Validate release tag
         id: release-version
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = $env:RELEASE_TAG
           if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
             throw "Malformed release tag '$tag'. Expected vX.Y.Z."
           }
@@ -53,7 +55,9 @@ jobs:
         run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config --no-cache --force
 
       - name: Build Release
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -p:Version=${{ steps.release-version.outputs.version }}
+        env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -p:Version="$RELEASE_VERSION"
 
       - name: Test
         run: dotnet test KeelMatrix.EfGuard.sln --configuration Release --no-build --no-restore
@@ -62,27 +66,35 @@ jobs:
         run: dotnet format KeelMatrix.EfGuard.sln --verify-no-changes --no-restore
 
       - name: Pack candidate
-        run: >
+        env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
+        run: >-
           dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj
           --configuration Release --no-build --no-restore
           --include-symbols --p:SymbolPackageFormat=snupkg
-          -p:Version=${{ steps.release-version.outputs.version }}
+          -p:Version="$RELEASE_VERSION"
           --output ./artifacts/packages
 
       - name: Validate deterministic package contract
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
-          ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion ${{ steps.release-version.outputs.version }} -ExpectedCommit $env:GITHUB_SHA
+          ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion $env:RELEASE_VERSION -ExpectedCommit $env:GITHUB_SHA
 
       - name: Verify unexpected archive entries fail closed
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
-          ./build/Test-Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion ${{ steps.release-version.outputs.version }} -ExpectedCommit $env:GITHUB_SHA
+          ./build/Test-Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion $env:RELEASE_VERSION -ExpectedCommit $env:GITHUB_SHA
 
       - name: Validate isolated package consumer
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
         run: |
-          ./build/Validate-PackageConsumer.ps1 -PackageDirectory ./artifacts/packages -Version ${{ steps.release-version.outputs.version }} -WorkingDirectory $PWD
+          ./build/Validate-PackageConsumer.ps1 -PackageDirectory ./artifacts/packages -Version $env:RELEASE_VERSION -WorkingDirectory $PWD
 
       - name: Upload inspected packages
         uses: actions/upload-artifact@v7
@@ -108,10 +120,12 @@ jobs:
 
       - name: Verify exact publication set
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
         run: |
           $expected = @(
-            "KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.nupkg",
-            "KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.snupkg"
+            "KeelMatrix.EfGuard.$($env:RELEASE_VERSION).nupkg",
+            "KeelMatrix.EfGuard.$($env:RELEASE_VERSION).snupkg"
           ) | Sort-Object
           $actual = @(Get-ChildItem -LiteralPath ./artifacts/packages -File | Select-Object -ExpandProperty Name | Sort-Object)
           if (@(Compare-Object -ReferenceObject $expected -DifferenceObject $actual).Count -ne 0) {
@@ -126,16 +140,25 @@ jobs:
 
       - name: Publish exact package
         shell: bash
-        run: >-
-          dotnet nuget push
-          "./artifacts/packages/KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.nupkg"
-          --source https://api.nuget.org/v3/index.json
-          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          dotnet nuget push \
+            "./artifacts/packages/KeelMatrix.EfGuard.${RELEASE_VERSION}.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "$NUGET_API_KEY" \
+            --no-symbols
 
       - name: Publish exact symbol package
         shell: bash
-        run: >-
-          dotnet nuget push
-          "./artifacts/packages/KeelMatrix.EfGuard.${{ needs.validate.outputs.version }}.snupkg"
-          --source https://api.nuget.org/v3/index.json
-          --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          dotnet nuget push \
+            "./artifacts/packages/KeelMatrix.EfGuard.${RELEASE_VERSION}.snupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "$NUGET_API_KEY"
