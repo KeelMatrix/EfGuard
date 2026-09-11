@@ -1,5 +1,6 @@
 ﻿using System.IO.Compression;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace KeelMatrix.EfGuard;
 
@@ -175,13 +176,13 @@ internal static class ExtractionCoordinator
 
     private static string LocateWorker(string projectPath)
     {
-        bool wantsNet10 = File.ReadAllText(projectPath).Contains("net10.0", StringComparison.OrdinalIgnoreCase);
+        string targetFramework = SelectWorkerTargetFramework(projectPath);
         string packaged = Path.Combine(AppContext.BaseDirectory, "KeelMatrix.EfGuard.Worker.dll");
-        if (wantsNet10)
+        if (targetFramework != "net8.0")
         {
-            string net10Packaged = Path.Combine(AppContext.BaseDirectory, "net10.0", "KeelMatrix.EfGuard.Worker.dll");
-            if (File.Exists(net10Packaged))
-                return net10Packaged;
+            string packagedWorker = Path.Combine(AppContext.BaseDirectory, targetFramework, "KeelMatrix.EfGuard.Worker.dll");
+            if (File.Exists(packagedWorker))
+                return packagedWorker;
         }
         if (File.Exists(packaged))
             return packaged;
@@ -189,19 +190,45 @@ internal static class ExtractionCoordinator
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         for (int i = 0; i < 8 && directory is not null; i++, directory = directory.Parent)
         {
-            string targetFramework = wantsNet10 ? "net10.0" : "net8.0";
-            string candidate = Path.Combine(directory.FullName, "KeelMatrix.EfGuard.Worker", "bin", "Debug", targetFramework, "KeelMatrix.EfGuard.Worker.dll");
-            if (File.Exists(candidate))
-                return candidate;
-            candidate = Path.Combine(directory.FullName, "src", "KeelMatrix.EfGuard.Worker", "bin", "Debug", targetFramework, "KeelMatrix.EfGuard.Worker.dll");
+            string candidate = Path.Combine(directory.FullName, "KeelMatrix.EfGuard.Worker", "bin", "Release", targetFramework, "KeelMatrix.EfGuard.Worker.dll");
             if (File.Exists(candidate))
                 return candidate;
             candidate = Path.Combine(directory.FullName, "src", "KeelMatrix.EfGuard.Worker", "bin", "Release", targetFramework, "KeelMatrix.EfGuard.Worker.dll");
             if (File.Exists(candidate))
                 return candidate;
+            candidate = Path.Combine(directory.FullName, "KeelMatrix.EfGuard.Worker", "bin", "Debug", targetFramework, "KeelMatrix.EfGuard.Worker.dll");
+            if (File.Exists(candidate))
+                return candidate;
+            candidate = Path.Combine(directory.FullName, "src", "KeelMatrix.EfGuard.Worker", "bin", "Debug", targetFramework, "KeelMatrix.EfGuard.Worker.dll");
+            if (File.Exists(candidate))
+                return candidate;
         }
         throw new InvalidOperationException("The EfGuard extraction worker is not installed.");
     }
+
+    private static string SelectWorkerTargetFramework(string projectPath)
+    {
+        string project = File.ReadAllText(projectPath);
+        Match targetFramework = Regex.Match(project, @"<TargetFramework>\s*(?<tfm>[^<;]+)\s*</TargetFramework>", RegexOptions.IgnoreCase);
+        if (targetFramework.Success)
+            return NormalizeSupportedTargetFramework(targetFramework.Groups["tfm"].Value);
+
+        Match targetFrameworks = Regex.Match(project, @"<TargetFrameworks>\s*(?<tfms>[^<]+)\s*</TargetFrameworks>", RegexOptions.IgnoreCase);
+        if (targetFrameworks.Success)
+        {
+            string[] frameworks = targetFrameworks.Groups["tfms"].Value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (string candidate in new[] { "net10.0", "net9.0", "net8.0" })
+                if (frameworks.Any(framework => framework.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
+                    return candidate;
+        }
+
+        return "net8.0";
+    }
+
+    private static string NormalizeSupportedTargetFramework(string targetFramework)
+        => targetFramework.Equals("net10.0", StringComparison.OrdinalIgnoreCase) ? "net10.0"
+            : targetFramework.Equals("net9.0", StringComparison.OrdinalIgnoreCase) ? "net9.0"
+            : "net8.0";
 
     private static ExtractionResult Failure(string message) => new() { Success = false, Error = message };
 

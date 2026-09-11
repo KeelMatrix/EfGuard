@@ -7,6 +7,7 @@ public sealed class ExtractionFixtureTests
     [InlineData("Ef8", "Microsoft.EntityFrameworkCore.SqlServer", "drop-column")]
     [InlineData("Ef8Postgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "create-index")]
     [InlineData("Ef9", "Npgsql.EntityFrameworkCore.PostgreSQL", "create-index")]
+    [InlineData("Ef9Net9", "Npgsql.EntityFrameworkCore.PostgreSQL", "create-index")]
     [InlineData("Ef9SqlServer", "Microsoft.EntityFrameworkCore.SqlServer", "create-index")]
     [InlineData("Ef10", "Microsoft.EntityFrameworkCore.SqlServer", "add-column")]
     [InlineData("Ef10Postgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "add-column")]
@@ -42,6 +43,20 @@ public sealed class ExtractionFixtureTests
         Assert.Contains(result.Operations, operation => operation.Migration == "20240505000000_AddFactoryIndex" && operation.Kind == "raw-sql" && operation.OperationIndex == 1);
         Assert.Contains(result.ProviderSql.Statements, statement => statement.Migration == "20240505000000_AddFactoryIndex" && statement.OperationIndex == 0 && statement.Sql.Contains("CREATE UNIQUE INDEX", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.ProviderSql.Statements, statement => statement.Migration == "20240505000000_AddFactoryIndex" && statement.OperationIndex == 1 && statement.Sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SeparateStartupProjectCreatesOptionsOnlyContextFromApplicationServices()
+    {
+        string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "EfStartupServices", "EfStartupServicesFixture.csproj"));
+        string startup = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "EfStartupServicesHost", "EfStartupServicesHost.csproj"));
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, startup, "StartupServicesDbContext", CancellationToken.None);
+
+        Assert.True(result.Success, $"Extraction failed: {result.Error ?? "(no error returned)"}");
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", result.Provider);
+        Assert.Contains(result.Operations, operation => operation.Kind == "create-index");
+        Assert.True(result.ProviderSql.Available);
     }
 
     [Fact]

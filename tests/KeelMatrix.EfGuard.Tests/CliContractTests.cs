@@ -18,7 +18,7 @@ public sealed class CliContractTests
     [Fact]
     public async Task BuiltExecutableReturnsCleanJsonForACompletedScan()
     {
-        ProcessResult result = await RunCliAsync(["check", "--project", "fixtures/Ef8Clean/Ef8CleanFixture.csproj", "--format", "json"]);
+        ProcessResult result = await RunCliAsync(["check", "--project", "fixtures/Ef8Clean/Ef8CleanFixture.csproj", "--baseline", "HEAD", "--format", "json"]);
 
         Assert.Equal(0, result.ExitCode);
         using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
@@ -106,6 +106,25 @@ public sealed class CliContractTests
         Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", document.RootElement.GetProperty("provider").GetString());
         Assert.True(document.RootElement.GetProperty("providerSql").GetProperty("available").GetBoolean());
         Assert.Equal(1, document.RootElement.GetProperty("summary").GetProperty("exitCode").GetInt32());
+        Assert.Contains(document.RootElement.GetProperty("diagnostics").EnumerateArray(), diagnostic => diagnostic.GetProperty("ruleId").GetString() == "EFG399");
+        Assert.Empty(document.RootElement.GetProperty("errors").EnumerateArray());
+        Assert.Empty(result.StandardError);
+    }
+
+    [Fact]
+    public async Task BuiltExecutableUsesSeparateStartupProjectApplicationServices()
+    {
+        ProcessResult result = await RunCliAsync([
+            "check",
+            "--project", "fixtures/EfStartupServices/EfStartupServicesFixture.csproj",
+            "--startup-project", "fixtures/EfStartupServicesHost/EfStartupServicesHost.csproj",
+            "--context", "StartupServicesDbContext",
+            "--format", "json"]);
+
+        Assert.Equal(1, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", document.RootElement.GetProperty("provider").GetString());
+        Assert.True(document.RootElement.GetProperty("providerSql").GetProperty("available").GetBoolean());
         Assert.Contains(document.RootElement.GetProperty("diagnostics").EnumerateArray(), diagnostic => diagnostic.GetProperty("ruleId").GetString() == "EFG399");
         Assert.Empty(document.RootElement.GetProperty("errors").EnumerateArray());
         Assert.Empty(result.StandardError);

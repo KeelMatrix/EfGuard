@@ -208,5 +208,9 @@ Exit codes:
   0  trustworthy analysis completed with no blocking finding
   1  trustworthy analysis completed with a blocking or unverified finding
   2  analysis could not complete trustworthily
+
+Design-time startup resolution:
+  --startup-project first uses the startup application's scoped services or IDbContextFactory,
+  then falls back to IDesignTimeDbContextFactory and a parameterless DbContext constructor.
 """;
 }

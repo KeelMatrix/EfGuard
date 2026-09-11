@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string] $PackageDirectory,
@@ -115,7 +115,10 @@ try {
         "tools/net8.0/any/KeelMatrix.Telemetry.dll",
         "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.deps.json",
         "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.dll",
-        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
+        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json",
+        "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.deps.json",
+        "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.dll",
+        "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
     ) "$(Split-Path -Leaf $nupkgPath)"
 
     foreach ($entryName in $entryNames | Where-Object { $_ -match '(?i)\.(?:nuspec|md|txt|json|xml|props|targets|cs|csproj)$' }) {
@@ -139,7 +142,10 @@ try {
         "tools/net8.0/any/KeelMatrix.EfGuard.Worker.runtimeconfig.json",
         "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.dll",
         "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.deps.json",
-        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
+        "tools/net8.0/any/net10.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json",
+        "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.dll",
+        "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.deps.json",
+        "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
     )) {
         Assert-True ($entryNames -contains $required) "required package asset '$required' is missing."
     }

@@ -12,6 +12,8 @@
 - `diagnostics`: stable rule findings. Suppressed findings remain present with `suppressed: true`.
 - `errors`: non-sensitive execution errors.
 
+Under the default `rolling` strategy, a report without a supplied baseline includes an `EFG399` unverified diagnostic because the previous application/schema compatibility evidence is unavailable. The latest discovered migration is still inspected, and a compatible supplied baseline remains clean for `minimumCompatibleVersions: 1`.
+
 Diagnostic fields are `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, `provider`, `migration`, `location`, `affectedState`, `explanation`, `remediation`, `uncertainty`, and `suppressed`. `severity` values are `advisory`, `high`, `block`, and `unverified`; `confidence` values are `high`, `medium`, and `unknown`.
 
 ## Compatibility policy

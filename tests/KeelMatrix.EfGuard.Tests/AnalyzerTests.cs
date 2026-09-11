@@ -144,8 +144,35 @@ public sealed class AnalyzerTests
             new NormalizedOperation { Kind = "create-table", Table = "Orders", Migration = "20240201_Current" }
         ], "Microsoft.EntityFrameworkCore.SqlServer"), null, new GuardConfig(), null);
 
-        Assert.DoesNotContain(report.Diagnostics, d => d.RuleId == "EFG399");
+        Assert.Contains(report.Diagnostics, d => d.RuleId == "EFG399" && d.Title == "Insufficient compatibility history");
         Assert.Equal(1, report.Summary.OperationsInspected);
+        Assert.Equal(1, report.Summary.ExitCode);
+    }
+
+    [Theory]
+    [InlineData("drop-column", "EFG201")]
+    [InlineData("drop-table", "EFG201")]
+    [InlineData("rename-column", null)]
+    [InlineData("rename-table", null)]
+    public void DefaultRollingPolicyFailsClosedWithoutBaselineForOverlapSensitiveOperations(string operationKind, string? additionalRule)
+    {
+        Report report = Analyzer.Analyze(Current(new NormalizedOperation
+        {
+            Kind = operationKind,
+            Table = "Orders",
+            Column = "LegacyCode",
+            NewColumn = "CurrentCode",
+            NewTable = "CurrentOrders",
+            Migration = "20240201_Current"
+        }), null, new GuardConfig(), null);
+
+        Assert.Contains(report.Diagnostics, diagnostic => diagnostic.RuleId == "EFG399" && diagnostic.Title == "Insufficient compatibility history");
+        Assert.DoesNotContain(report.Diagnostics, diagnostic => diagnostic.RuleId == "EFG101");
+        if (additionalRule is null)
+            Assert.DoesNotContain(report.Diagnostics, diagnostic => diagnostic.RuleId == "EFG201");
+        else
+            Assert.Contains(report.Diagnostics, diagnostic => diagnostic.RuleId == additionalRule);
+        Assert.Equal(1, report.Summary.ExitCode);
     }
 
     [Fact]
@@ -396,14 +423,15 @@ public sealed class AnalyzerTests
     [Fact]
     public void BackfillAndTransactionRulesRemainDistinctFromBoundedSql()
     {
-        Report backfill = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "sql-backfill", Table = "Orders" }), null, new GuardConfig(), null);
+        GuardConfig operationConfig = new() { Strategy = "blue-green" };
+        Report backfill = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "sql-backfill", Table = "Orders" }), null, operationConfig, null);
         Diagnostic backfillFinding = Assert.Single(backfill.Diagnostics, d => d.RuleId == "EFG304");
         Assert.Equal(FindingSeverity.High, backfillFinding.Severity);
         Assert.Equal(FindingConfidence.High, backfillFinding.Confidence);
         Assert.NotEmpty(backfillFinding.Remediation);
 
-        Report suppressedTransaction = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "raw-sql", Table = "Orders", SuppressTransaction = true }), null, new GuardConfig(), null);
-        Diagnostic unknownFinding = Assert.Single(suppressedTransaction.Diagnostics, d => d.RuleId == "EFG399");
+        Report suppressedTransaction = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "raw-sql", Table = "Orders", SuppressTransaction = true }), null, operationConfig, null);
+        Diagnostic unknownFinding = Assert.Single(suppressedTransaction.Diagnostics, d => d.RuleId == "EFG399" && d.Title == "Unverified migration operation");
         Assert.Equal(FindingSeverity.Unverified, unknownFinding.Severity);
         Assert.Equal(FindingConfidence.Unknown, unknownFinding.Confidence);
         Diagnostic transactionFinding = Assert.Single(suppressedTransaction.Diagnostics, d => d.RuleId == "EFG305");
@@ -412,11 +440,11 @@ public sealed class AnalyzerTests
         Assert.NotEmpty(transactionFinding.Remediation);
         Assert.Equal(1, suppressedTransaction.Summary.ExitCode);
 
-        Report suppressedBackfill = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "sql-backfill", Table = "Orders", SuppressTransaction = true }), null, new GuardConfig(), null);
+        Report suppressedBackfill = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "sql-backfill", Table = "Orders", SuppressTransaction = true }), null, operationConfig, null);
         Assert.Contains(suppressedBackfill.Diagnostics, d => d.RuleId == "EFG304");
         Assert.Contains(suppressedBackfill.Diagnostics, d => d.RuleId == "EFG305");
 
-        Report bounded = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "raw-sql", Table = "Orders" }), null, new GuardConfig(), null);
+        Report bounded = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "raw-sql", Table = "Orders" }), null, operationConfig, null);
         Assert.DoesNotContain(bounded.Diagnostics, d => d.RuleId == "EFG304");
         Assert.DoesNotContain(bounded.Diagnostics, d => d.RuleId == "EFG305");
         Assert.Contains(bounded.Diagnostics, d => d.RuleId == "EFG399");
@@ -425,13 +453,14 @@ public sealed class AnalyzerTests
     [Fact]
     public void UnverifiedOperationRuleHasKnownOperationBoundary()
     {
-        Report unknown = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "custom-operation" }), null, new GuardConfig(), null);
-        Diagnostic finding = Assert.Single(unknown.Diagnostics, d => d.RuleId == "EFG399");
+        GuardConfig operationConfig = new() { Strategy = "blue-green" };
+        Report unknown = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "custom-operation" }), null, operationConfig, null);
+        Diagnostic finding = Assert.Single(unknown.Diagnostics, d => d.RuleId == "EFG399" && d.Title == "Unverified migration operation");
         Assert.Equal(FindingSeverity.Unverified, finding.Severity);
         Assert.Equal(FindingConfidence.Unknown, finding.Confidence);
         Assert.NotEmpty(finding.Remediation);
 
-        Report known = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "create-table", Table = "Orders" }), null, new GuardConfig(), null);
+        Report known = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "create-table", Table = "Orders" }), null, operationConfig, null);
         Assert.DoesNotContain(known.Diagnostics, d => d.RuleId == "EFG399");
     }
 
@@ -451,7 +480,7 @@ public sealed class AnalyzerTests
     [Fact]
     public void ExpiredSuppressionRuleHasUnexpiredBoundary()
     {
-        GuardConfig expired = new();
+        GuardConfig expired = new() { Strategy = "blue-green" };
         expired.Suppressions.Add(new Suppression { Rule = "EFG399", Reason = "temporary", Expires = new DateOnly(2020, 1, 1) });
         Report expiredReport = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "custom-operation" }), null, expired, null);
         Diagnostic expiredFinding = Assert.Single(expiredReport.Diagnostics, d => d.RuleId == "EFG998");
@@ -459,7 +488,7 @@ public sealed class AnalyzerTests
         Assert.Equal(FindingConfidence.High, expiredFinding.Confidence);
         Assert.NotEmpty(expiredFinding.Remediation);
 
-        GuardConfig active = new();
+        GuardConfig active = new() { Strategy = "blue-green" };
         active.Suppressions.Add(new Suppression { Rule = "EFG399", Reason = "temporary", Expires = DateOnly.MaxValue });
         Report activeReport = Analyzer.Analyze(Current(new NormalizedOperation { Kind = "custom-operation" }), null, active, null);
         Assert.DoesNotContain(activeReport.Diagnostics, d => d.RuleId == "EFG998");

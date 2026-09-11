@@ -39,7 +39,8 @@ internal static class Analyzer
             AddFindings(report, current.Provider, config, AnalyzeCompatibility(current.Model, baseline.Model, config.Strategy));
         }
 
-        if (config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase) && config.MinimumCompatibleVersions > 1)
+        if (config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase)
+            && (baseline is null || config.MinimumCompatibleVersions > 1))
         {
             string historyExplanation = baseline is null
                 ? $"The rolling policy requires compatibility with {config.MinimumCompatibleVersions} previous application versions, but this scan has no baseline history evidence."

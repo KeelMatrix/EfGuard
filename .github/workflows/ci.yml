@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -31,6 +31,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.424
+            9.0.121
             10.0.400
 
       - name: Verify telemetry opt-out
@@ -69,6 +70,10 @@ jobs:
             project: fixtures/Ef9/Ef9Fixture.csproj
             provider: Npgsql.EntityFrameworkCore.PostgreSQL
             migration: 20240202000000_AddIndex
+          - name: ef9-net9-npgsql
+            project: fixtures/Ef9Net9/Ef9Net9Fixture.csproj
+            provider: Npgsql.EntityFrameworkCore.PostgreSQL
+            migration: 20240204000000_AddNet9Index
           - name: ef8-postgresql
             project: fixtures/Ef8Postgres/Ef8PostgresFixture.csproj
             provider: Npgsql.EntityFrameworkCore.PostgreSQL
@@ -94,6 +99,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.424
+            9.0.121
             10.0.400
 
       - name: Verify telemetry opt-out
@@ -172,6 +178,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.424
+            9.0.121
             10.0.400
 
       - name: Verify telemetry opt-out
@@ -362,6 +369,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.424
+            9.0.121
             10.0.400
 
       - name: Verify telemetry opt-out

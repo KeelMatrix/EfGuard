@@ -1,4 +1,4 @@
-name: Release candidate validation
+﻿name: Release candidate validation
 
 on:
   push:
@@ -42,6 +42,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.424
+            9.0.121
             10.0.400
 
       - name: Verify telemetry opt-out

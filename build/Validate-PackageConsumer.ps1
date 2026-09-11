@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string] $PackageDirectory,
@@ -95,7 +95,7 @@ try {
     $installedHash = (Get-FileHash -LiteralPath $installedPackage.FullName -Algorithm SHA256).Hash
     if ($localHash -ne $installedHash) { throw "installed EfGuard package does not match the freshly built local artifact." }
 
-    $clean = Invoke-InstalledTool $tool.FullName @("check", "--project", "fixtures/Ef8Clean/Ef8CleanFixture.csproj", "--format", "json")
+    $clean = Invoke-InstalledTool $tool.FullName @("check", "--project", "fixtures/Ef8Clean/Ef8CleanFixture.csproj", "--baseline", "HEAD", "--format", "json")
     if ($clean.ExitCode -ne 0) { throw "installed-package clean smoke returned exit code $($clean.ExitCode): $($clean.StandardError)" }
     $cleanReport = $clean.StandardOutput | ConvertFrom-Json
     if ($cleanReport.summary.exitCode -ne 0) { throw "installed-package clean smoke report did not have exit code 0." }
@@ -104,6 +104,21 @@ try {
     if ($baseline.ExitCode -ne 0) { throw "installed-package baseline smoke returned exit code $($baseline.ExitCode): $($baseline.StandardError)" }
     $baselineReport = $baseline.StandardOutput | ConvertFrom-Json
     if (-not $baselineReport.baseline.available) { throw "installed-package baseline smoke did not load the requested Git reference." }
+
+    $startupServices = Invoke-InstalledTool $tool.FullName @(
+        "check", "--project", "fixtures/EfStartupServices/EfStartupServicesFixture.csproj",
+        "--startup-project", "fixtures/EfStartupServicesHost/EfStartupServicesHost.csproj",
+        "--context", "StartupServicesDbContext", "--format", "json"
+    )
+    if ($startupServices.ExitCode -ne 1) { throw "installed-package startup-services smoke returned exit code $($startupServices.ExitCode): $($startupServices.StandardError)" }
+    $startupReport = $startupServices.StandardOutput | ConvertFrom-Json
+    if ($startupReport.provider -ne "Microsoft.EntityFrameworkCore.SqlServer" -or -not $startupReport.providerSql.available) { throw "installed-package startup-services smoke did not resolve the startup application's DbContext services." }
+    if (-not (@($startupReport.diagnostics | Where-Object { $_.ruleId -eq "EFG399" }).Count -gt 0)) { throw "installed-package startup-services smoke did not fail closed for missing rolling baseline evidence." }
+
+    $net9 = Invoke-InstalledTool $tool.FullName @("check", "--project", "fixtures/Ef9Net9/Ef9Net9Fixture.csproj", "--format", "json")
+    if ($net9.ExitCode -ne 1) { throw "installed-package net9 fixture smoke returned exit code $($net9.ExitCode): $($net9.StandardError)" }
+    $net9Report = $net9.StandardOutput | ConvertFrom-Json
+    if ($net9Report.provider -ne "Npgsql.EntityFrameworkCore.PostgreSQL" -or -not $net9Report.providerSql.available) { throw "installed-package net9 fixture smoke did not preserve EF Core 9/net9 provider SQL evidence." }
 
     $telemetryAfter = @(Get-TelemetryFiles)
     $newTelemetryFiles = @($telemetryAfter | Where-Object { $telemetryBefore -notcontains $_ })

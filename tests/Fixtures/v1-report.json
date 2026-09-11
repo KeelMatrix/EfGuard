@@ -1,4 +1,4 @@
-{
+﻿{
   "schemaVersion": 1,
   "toolVersion": "0.1.0",
   "provider": "Microsoft.EntityFrameworkCore.SqlServer",
@@ -27,9 +27,24 @@
     "advisory": 0,
     "high": 0,
     "blocking": 0,
-    "unverified": 0,
-    "exitCode": 0
+    "unverified": 1,
+    "exitCode": 1
   },
-  "diagnostics": [],
+  "diagnostics": [
+    {
+      "ruleId": "EFG399",
+      "title": "Insufficient compatibility history",
+      "riskDimensions": [
+        "compatibility"
+      ],
+      "severity": "unverified",
+      "confidence": "unknown",
+      "provider": "Microsoft.EntityFrameworkCore.SqlServer",
+      "explanation": "The rolling policy requires compatibility with 1 previous application versions, but this scan has no baseline history evidence.",
+      "remediation": "Provide baseline history that represents the required compatibility generations or lower the policy to the evidence available to this scan.",
+      "uncertainty": "EfGuard does not reconstruct application generations that are absent from the selected evidence.",
+      "suppressed": false
+    }
+  ],
   "errors": []
 }
