@@ -111,14 +111,23 @@ if ($RequireChangelogInCommit) {
 
 $changelogLines = @(Get-Content -LiteralPath $changelogFullPath -Encoding UTF8)
 $headingRecords = @()
+$headingStack = [System.Collections.Generic.List[object]]::new()
 for ($index = 0; $index -lt $changelogLines.Count; $index++) {
     $headingMatch = [regex]::Match($changelogLines[$index], '^(?<hashes>#{1,6})[ \t]+(?<text>.*?)[ \t]*#*[ \t]*$')
     if ($headingMatch.Success) {
-        $headingRecords += [pscustomobject]@{
-            Level = $headingMatch.Groups["hashes"].Value.Length
+        $headingLevel = $headingMatch.Groups["hashes"].Value.Length
+        while ($headingStack.Count -gt 0 -and $headingStack[$headingStack.Count - 1].Level -ge $headingLevel) {
+            $headingStack.RemoveAt($headingStack.Count - 1)
+        }
+
+        $headingRecord = [pscustomobject]@{
+            Level = $headingLevel
             Text = $headingMatch.Groups["text"].Value.Trim()
             Line = $index + 1
+            EnclosingHeading = if ($headingStack.Count -gt 0) { $headingStack[$headingStack.Count - 1] } else { $null }
         }
+        $headingRecords += $headingRecord
+        $headingStack.Add($headingRecord)
     }
 }
 
@@ -133,10 +142,15 @@ if ($targetHeadings.Count -gt 1) {
 
 $targetHeading = $targetHeadings[0]
 if ($targetHeading.Level -ne 2) {
-    Fail "target release version '$ExpectedVersion' must be a level-two release heading and cannot be nested inside the Unreleased section."
+    Fail "target release version '$ExpectedVersion' must be a level-two release heading."
 }
 
 $preReleaseWording = '(?i)(?<![A-Za-z])(?:planned|unreleased|unpublished|not[ \t]+(?:yet[ \t]+)?published|not[ \t]+released|to[ \t]+be[ \t]+(?:published|released)|tbd|upcoming|draft|pending|pre[ -]?release|work[ \t]+in[ \t]+progress|future[ \t]+release)(?![A-Za-z])'
+$enclosingHeading = $targetHeading.EnclosingHeading
+if ($null -ne $enclosingHeading -and $enclosingHeading.Text -match $preReleaseWording) {
+    Fail "target release version '$ExpectedVersion' is nested inside pre-release section '$($enclosingHeading.Text)' on line $($enclosingHeading.Line)."
+}
+
 if ($targetHeading.Text -match $preReleaseWording) {
     Fail "target release heading on line $($targetHeading.Line) still contains pre-release wording."
 }
@@ -262,12 +276,32 @@ foreach ($examplePath in @($InstallExamplePath)) {
     }
 
     $exampleLines = @(Get-Content -LiteralPath $exampleFullPath -Encoding UTF8)
-    foreach ($exampleLine in $exampleLines) {
-        if ($exampleLine -notmatch '(?i)\bdotnet\s+tool\s+install\b' -or $exampleLine -notmatch ('(?i)\b' + [regex]::Escape("KeelMatrix.EfGuard") + '\b')) {
+    for ($lineIndex = 0; $lineIndex -lt $exampleLines.Count; $lineIndex++) {
+        $installText = $exampleLines[$lineIndex]
+        if ($installText -notmatch '(?i)\bdotnet\s+tool\s+install\b') {
             continue
         }
 
-        $installVersionMatches = @([regex]::Matches($exampleLine, $installVersionPattern))
+        $lastLineIndex = $lineIndex
+        while ($lastLineIndex + 1 -lt $exampleLines.Count) {
+            $currentLine = $exampleLines[$lastLineIndex].TrimEnd()
+            $nextLine = $exampleLines[$lastLineIndex + 1]
+            $hasLineContinuation = $currentLine.EndsWith('\') -or $currentLine.EndsWith('`')
+            $hasVersionContinuation = $nextLine -match '^\s*--version(?:\s+|$)'
+            if (-not $hasLineContinuation -and -not $hasVersionContinuation) {
+                break
+            }
+
+            $installText += "`n" + $nextLine
+            $lastLineIndex++
+        }
+        $lineIndex = $lastLineIndex
+
+        if ($installText -notmatch ('(?i)\b' + [regex]::Escape("KeelMatrix.EfGuard") + '\b')) {
+            continue
+        }
+
+        $installVersionMatches = @([regex]::Matches($installText, $installVersionPattern))
         foreach ($installVersionMatch in $installVersionMatches) {
             $installVersion = $installVersionMatch.Groups["version"].Value
             if ($installVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {

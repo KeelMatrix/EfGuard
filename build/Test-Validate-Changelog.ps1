@@ -61,6 +61,24 @@ try {
         RepositoryRoot = $repositoryRoot
     } $false "planned/unreleased target is rejected"
 
+    $levelOneNestedPath = Join-Path $fixtureRoot "level-one-nested-under-unreleased.md"
+    Write-Fixture $levelOneNestedPath @"
+# [Unreleased]
+
+## [0.1.0] - $releaseDate
+
+### Added
+
+- Nested release fixture under a level-one Unreleased section.
+"@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $levelOneNestedPath
+        RepositoryRoot = $repositoryRoot
+    } $false "target under a level-one Unreleased section is rejected"
+
     $nestedPath = Join-Path $fixtureRoot "nested-under-unreleased.md"
     Write-Fixture $nestedPath @"
 # Changelog
@@ -209,6 +227,62 @@ Future changes go here.
         InstallExamplePath = @($installMismatchPath)
         RepositoryRoot = $repositoryRoot
     } $false "install example version mismatch is rejected"
+
+    $multilineInstallMismatchPath = Join-Path $fixtureRoot "multiline-install-mismatch.md"
+    Write-Fixture $multilineInstallMismatchPath @'
+dotnet tool install --global KeelMatrix.EfGuard
+  --version 0.2.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($multilineInstallMismatchPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "multiline install example version mismatch is rejected"
+
+    $backtickInstallMismatchPath = Join-Path $fixtureRoot "backtick-install-mismatch.md"
+    Write-Fixture $backtickInstallMismatchPath @'
+dotnet tool install --global KeelMatrix.EfGuard `
+  --version 0.2.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($backtickInstallMismatchPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "backtick continuation install example version mismatch is rejected"
+
+    $backslashInstallMismatchPath = Join-Path $fixtureRoot "backslash-install-mismatch.md"
+    Write-Fixture $backslashInstallMismatchPath @'
+dotnet tool install --global KeelMatrix.EfGuard \
+  --version 0.2.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($backslashInstallMismatchPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "backslash continuation install example version mismatch is rejected"
+
+    $multilineInstallConsistentPath = Join-Path $fixtureRoot "multiline-install-consistent.md"
+    Write-Fixture $multilineInstallConsistentPath @'
+dotnet tool install --global KeelMatrix.EfGuard `
+  --version 0.1.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $finalizedPath
+        InstallExamplePath = @($multilineInstallConsistentPath)
+        RepositoryRoot = $repositoryRoot
+    } $true "finalized changelog with a consistent multiline install example passes"
 
     $exactCommitChangelog = @"
 # Changelog
