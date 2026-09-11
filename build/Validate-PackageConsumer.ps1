@@ -130,3 +130,5 @@ finally {
     $env:NUGET_PACKAGES = $oldNugetPackages
     if (Test-Path -LiteralPath $validationRoot) { Remove-Item -LiteralPath $validationRoot -Recurse -Force }
 }
+
+exit 0
