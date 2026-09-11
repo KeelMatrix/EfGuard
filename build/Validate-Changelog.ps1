@@ -268,7 +268,7 @@ foreach ($dependencyId in @($dependencyVersions.Keys)) {
     }
 }
 
-$installVersionPattern = '--version\s+(?:"(?<version>[^"]+)"|''(?<version>[^'']+)''|(?<version>[^\s]+))'
+$installVersionPattern = '--version(?:\s+|=)(?:"(?<version>[^"]+)"|''(?<version>[^'']+)''|(?<version>[^\s]+))'
 foreach ($examplePath in @($InstallExamplePath)) {
     $exampleFullPath = Resolve-RepositoryPath $examplePath
     if (-not (Test-Path -LiteralPath $exampleFullPath -PathType Leaf)) {
@@ -287,7 +287,7 @@ foreach ($examplePath in @($InstallExamplePath)) {
             $currentLine = $exampleLines[$lastLineIndex].TrimEnd()
             $nextLine = $exampleLines[$lastLineIndex + 1]
             $hasLineContinuation = $currentLine.EndsWith('\') -or $currentLine.EndsWith('`')
-            $hasVersionContinuation = $nextLine -match '^\s*--version(?:\s+|$)'
+            $hasVersionContinuation = $nextLine -match '^\s*--version(?:\s+|=|$)'
             if (-not $hasLineContinuation -and -not $hasVersionContinuation) {
                 break
             }

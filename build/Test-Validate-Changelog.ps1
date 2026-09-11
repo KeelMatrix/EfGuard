@@ -228,6 +228,17 @@ Future changes go here.
         RepositoryRoot = $repositoryRoot
     } $false "install example version mismatch is rejected"
 
+    $equalsInstallMismatchPath = Join-Path $fixtureRoot "equals-install-mismatch.md"
+    Write-Fixture $equalsInstallMismatchPath "dotnet tool install --global KeelMatrix.EfGuard --version=0.2.0`n"
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($equalsInstallMismatchPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "equals-form install example version mismatch is rejected"
+
     $multilineInstallMismatchPath = Join-Path $fixtureRoot "multiline-install-mismatch.md"
     Write-Fixture $multilineInstallMismatchPath @'
 dotnet tool install --global KeelMatrix.EfGuard
@@ -270,6 +281,20 @@ dotnet tool install --global KeelMatrix.EfGuard \
         RepositoryRoot = $repositoryRoot
     } $false "backslash continuation install example version mismatch is rejected"
 
+    $equalsMultilineInstallMismatchPath = Join-Path $fixtureRoot "equals-multiline-install-mismatch.md"
+    Write-Fixture $equalsMultilineInstallMismatchPath @'
+dotnet tool install --global KeelMatrix.EfGuard \
+  --version=0.2.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($equalsMultilineInstallMismatchPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "equals-form continuation install example version mismatch is rejected"
+
     $multilineInstallConsistentPath = Join-Path $fixtureRoot "multiline-install-consistent.md"
     Write-Fixture $multilineInstallConsistentPath @'
 dotnet tool install --global KeelMatrix.EfGuard `
@@ -283,6 +308,20 @@ dotnet tool install --global KeelMatrix.EfGuard `
         InstallExamplePath = @($multilineInstallConsistentPath)
         RepositoryRoot = $repositoryRoot
     } $true "finalized changelog with a consistent multiline install example passes"
+
+    $equalsMultilineInstallConsistentPath = Join-Path $fixtureRoot "equals-multiline-install-consistent.md"
+    Write-Fixture $equalsMultilineInstallConsistentPath @'
+dotnet tool install --global KeelMatrix.EfGuard `
+  --version=0.1.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $finalizedPath
+        InstallExamplePath = @($equalsMultilineInstallConsistentPath)
+        RepositoryRoot = $repositoryRoot
+    } $true "finalized changelog with an equals-form install example passes"
 
     $exactCommitChangelog = @"
 # Changelog
