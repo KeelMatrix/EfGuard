@@ -37,6 +37,18 @@ jobs:
           }
           "version=$($Matches.version)" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Validate changelog and version contract
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
+        run: |
+          ./build/Validate-Changelog.ps1 `
+            -ExpectedVersion $env:RELEASE_VERSION `
+            -ExpectedPackageVersion $env:RELEASE_VERSION `
+            -ExpectedDependencyVersion $env:RELEASE_VERSION `
+            -ExpectedCommit $env:GITHUB_SHA `
+            -RequireChangelogInCommit
+
       - name: Set up .NET SDKs
         uses: actions/setup-dotnet@v6
         with:

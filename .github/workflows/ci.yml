@@ -188,6 +188,10 @@ jobs:
             throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
           }
 
+      - name: Validate changelog contract coverage
+        shell: pwsh
+        run: ./build/Test-Validate-Changelog.ps1
+
       - name: Snapshot telemetry state
         shell: pwsh
         run: |
