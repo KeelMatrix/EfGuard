@@ -266,3 +266,4 @@ finally {
 }
 
 Write-Output "Changelog contract coverage passed with synthetic fixtures."
+exit 0
