@@ -21,6 +21,9 @@ try {
     if (Test-Path -LiteralPath $packageDirectory) { Remove-Item -LiteralPath $packageDirectory -Recurse -Force }
     New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
 
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Changelog.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "changelog contract regression coverage failed." }
+
     Invoke-Dotnet @("restore", "KeelMatrix.EfGuard.sln", "--configfile", "NuGet.config")
     Invoke-Dotnet @("build", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-restore")
     Invoke-Dotnet @("test", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-build", "--no-restore")

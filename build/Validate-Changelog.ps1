@@ -132,12 +132,11 @@ if ($targetHeadings.Count -gt 1) {
 }
 
 $targetHeading = $targetHeadings[0]
-$previousLevelTwo = @($headingRecords | Where-Object { $_.Level -eq 2 -and $_.Line -lt $targetHeading.Line } | Select-Object -Last 1)
-if ($targetHeading.Level -ne 2 -or ($targetHeading.Level -gt 2 -and $previousLevelTwo.Count -gt 0 -and $previousLevelTwo[0].Text -match '(?i)\bunreleased\b')) {
-    Fail "target release version '$ExpectedVersion' is located inside the Unreleased section."
+if ($targetHeading.Level -ne 2) {
+    Fail "target release version '$ExpectedVersion' must be a level-two release heading and cannot be nested inside the Unreleased section."
 }
 
-$preReleaseWording = '(?i)(?<![A-Za-z])(?:planned|unreleased|not[ \t]+(?:yet[ \t]+)?published|not[ \t]+released|tbd|to[ \t]+be[ \t]+released|upcoming|draft|pending|pre[ -]?release|work[ \t]+in[ \t]+progress|future[ \t]+release)(?![A-Za-z])'
+$preReleaseWording = '(?i)(?<![A-Za-z])(?:planned|unreleased|unpublished|not[ \t]+(?:yet[ \t]+)?published|not[ \t]+released|to[ \t]+be[ \t]+(?:published|released)|tbd|upcoming|draft|pending|pre[ -]?release|work[ \t]+in[ \t]+progress|future[ \t]+release)(?![A-Za-z])'
 if ($targetHeading.Text -match $preReleaseWording) {
     Fail "target release heading on line $($targetHeading.Line) still contains pre-release wording."
 }
@@ -195,6 +194,9 @@ foreach ($versionFile in @($versionFiles | Select-Object -Unique)) {
 }
 
 $distinctPackageVersions = @($versionDeclarations | Select-Object -Unique)
+if ($distinctPackageVersions.Count -eq 0) {
+    Fail "no concrete package version declaration was found in Directory.Build.props or source project files."
+}
 if ($distinctPackageVersions.Count -gt 1) {
     Fail "repository package version declarations disagree: $($distinctPackageVersions -join ', ')."
 }

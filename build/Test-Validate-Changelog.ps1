@@ -29,7 +29,13 @@ function Invoke-Contract([hashtable] $Arguments, [bool] $ShouldPass, [string] $C
     if (-not $ShouldPass -and $exitCode -eq 0) {
         throw "$CaseName unexpectedly passed."
     }
-    Write-Output "Changelog contract case passed: $CaseName."
+    if ($ShouldPass) {
+        Write-Output "Changelog contract case passed: $CaseName."
+    }
+    else {
+        $details = (@($output) | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ }) -join " "
+        Write-Output "Changelog contract case failed closed as expected: $CaseName. $details"
+    }
 }
 
 try {
@@ -92,6 +98,47 @@ try {
         ChangelogPath = $plannedHeadingPath
         RepositoryRoot = $repositoryRoot
     } $false "planned release heading is rejected"
+
+    $missingDatePath = Join-Path $fixtureRoot "missing-date.md"
+    Write-Fixture $missingDatePath @"
+# Changelog
+
+## [Unreleased]
+
+## [0.1.0]
+
+### Added
+
+- Missing release date fixture.
+"@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $missingDatePath
+        RepositoryRoot = $repositoryRoot
+    } $false "release without a date is rejected"
+
+    $futureDatePath = Join-Path $fixtureRoot "future-date.md"
+    $futureDate = [DateTime]::UtcNow.AddDays(1).ToString("yyyy-MM-dd", [Globalization.CultureInfo]::InvariantCulture)
+    Write-Fixture $futureDatePath @"
+# Changelog
+
+## [Unreleased]
+
+## [0.1.0] - $futureDate
+
+### Added
+
+- Future release date fixture.
+"@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $futureDatePath
+        RepositoryRoot = $repositoryRoot
+    } $false "future release date is rejected"
 
     $finalizedPath = Join-Path $fixtureRoot "finalized.md"
     Write-Fixture $finalizedPath @"
@@ -202,6 +249,15 @@ Future changes go here.
         RepositoryRoot = $exactCommitRoot
         RequireChangelogInCommit = $true
     } $false "changed changelog cannot pass for an older commit"
+
+    Write-Fixture (Join-Path $exactCommitRoot "Directory.Build.props") "<Project><PropertyGroup><Version>1.2.4</Version></PropertyGroup></Project>`n"
+    Invoke-Contract @{
+        ExpectedVersion = "1.2.3"
+        ExpectedPackageVersion = "1.2.3"
+        ExpectedCommit = $exactCommit
+        ChangelogPath = "CHANGELOG.md"
+        RepositoryRoot = $exactCommitRoot
+    } $false "package metadata mismatch is rejected"
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) {
