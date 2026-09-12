@@ -299,6 +299,10 @@ internal static class Program
             // provider-specific migration analysis, so missing relational metadata is not fatal here.
             return [];
         }
+        catch (ExtractionFailureException)
+        {
+            throw;
+        }
         catch
         {
             throw new ExtractionFailureException("The migrations for the selected DbContext could not be resolved during extraction.");

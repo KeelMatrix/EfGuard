@@ -53,3 +53,19 @@ if LC_ALL=C grep -Eiq "$phrase_generated" "$message_file"; then
   printf '%s\n' 'Commit message rejected: generated attribution is not allowed.' >&2
   exit 1
 fi
+
+ticket_prefix=$(printf '\113\105\105')
+ticket_pattern="${ticket_prefix}-[[:digit:]]+|[[:upper:]]{2,}-[[:digit:]]+"
+if LC_ALL=C grep -Eiq "(^|[^[:alnum:]_])(${ticket_pattern})([^[:alnum:]_]|$)" "$message_file"; then
+  printf '%s\n' 'Commit message rejected: internal references are not allowed.' >&2
+  exit 1
+fi
+
+conflicts_label=$(printf '\103\157\156\146\154\151\143\164\163')
+marker_left=$(printf '\074\074\074\074\074\074\074')
+marker_middle=$(printf '\075\075\075\075\075\075\075')
+marker_right=$(printf '\076\076\076\076\076\076\076')
+if LC_ALL=C grep -Eiq "^[[:space:]]*#[[:space:]]*${conflicts_label}:|^[[:space:]]*(${marker_left}|${marker_middle}|${marker_right})" "$message_file"; then
+  printf '%s\n' 'Commit message rejected: merge-conflict metadata is not allowed.' >&2
+  exit 1
+fi
