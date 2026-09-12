@@ -197,6 +197,33 @@ public sealed class ExtractionFixtureTests
         Assert.False(result.ProviderSql.Available);
     }
 
+    [Fact]
+    public async Task PartialOwnAssemblyTypeLoadFailsClosedWithAssemblySpecificLoaderError()
+    {
+        string project = FixtureProject("EfPartialOwnAssembly");
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, null, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Error);
+        Assert.Contains("EfPartialOwnAssembly", result.Error, StringComparison.Ordinal);
+        Assert.Contains("ReflectionTypeLoadException", result.Error, StringComparison.Ordinal);
+        Assert.Contains("MissingDependency", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PartialPeripheralAssemblyIsToleratedAndRecordedAsANote()
+    {
+        string project = FixtureProject("EfPeripheralPartialAssembly");
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, null, CancellationToken.None);
+
+        Assert.True(result.Success, result.Error);
+        Assert.Contains(result.Notes, note => note.Contains("BrokenPeripheral", StringComparison.Ordinal)
+            && note.Contains("ReflectionTypeLoadException", StringComparison.Ordinal)
+            && note.Contains("MissingDependency", StringComparison.Ordinal));
+    }
+
     private static string FixtureProject(string fixture)
         => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));
 }

@@ -163,7 +163,7 @@ internal static class ExtractionCoordinator
                 {
                     ExtractionResult? failedResponse = await ReadResponseAsync(responsePath, cancellationToken).ConfigureAwait(false);
                     if (failedResponse is not null && !failedResponse.Success && !string.IsNullOrWhiteSpace(failedResponse.Error))
-                        return Failure(failedResponse.Error);
+                        return Failure(failedResponse.Error, failedResponse.Notes);
                 }
                 catch (JsonException) { }
                 catch (IOException) { }
@@ -279,7 +279,7 @@ internal static class ExtractionCoordinator
         frameworks.AddRange(property.GetString()!.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
     }
 
-    private static ExtractionResult Failure(string message) => new() { Success = false, Error = message };
+    private static ExtractionResult Failure(string message, IEnumerable<string>? notes = null) => new() { Success = false, Error = message, Notes = notes?.ToList() ?? [] };
 
     private static void TryDelete(string path)
     {

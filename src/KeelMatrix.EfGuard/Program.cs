@@ -37,11 +37,14 @@ internal static class Program
             GuardConfig config = ConfigurationLoader.Load(configPath);
 
             ExtractionResult current = await ExtractionCoordinator.ExtractAsync(projectPath, startupPath, options.Context, CancellationToken.None).ConfigureAwait(false);
+            WriteExtractionNotes(current);
             ExtractionResult? baseline = null;
             bool baselineFailure = false;
             if (options.Baseline is not null)
             {
                 baseline = await ExtractionCoordinator.ExtractBaselineAsync(projectPath, startupPath, options.Context, options.Baseline, CancellationToken.None).ConfigureAwait(false);
+                if (baseline is not null)
+                    WriteExtractionNotes(baseline);
                 if (baseline is not null && !baseline.Success)
                 {
                     string baselineError = baseline.Error ?? "The baseline EF model could not be extracted.";
@@ -81,6 +84,12 @@ internal static class Program
             client.TrackHeartbeat();
         }
         catch { }
+    }
+
+    private static void WriteExtractionNotes(ExtractionResult extraction)
+    {
+        foreach (string note in extraction.Notes.Take(16))
+            Console.Error.WriteLine("EfGuard note: " + note);
     }
 
     private static int WriteError(string message, bool json)

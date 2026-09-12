@@ -28,6 +28,7 @@ internal static class Program
                 return 2;
 
             ExtractionResult result = await ExtractAsync(request).ConfigureAwait(false);
+            result.Notes = Reflection.RecordedNotes();
             await WriteResponseAsync(request.ResponsePath, result).ConfigureAwait(false);
             Reflection.WriteRecordedNotes();
             return result.Success ? 0 : 1;
@@ -275,11 +276,12 @@ internal static class Program
             Type? contract = assemblies.Select(assembly => assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly")).FirstOrDefault(type => type is not null);
             object? services = GetInfrastructureServiceProvider(context);
             object? migrationsAssembly = contract is null || services is not IServiceProvider serviceProvider ? null : serviceProvider.GetService(contract);
+            migrationsAssemblyInstance = migrationsAssembly is null ? context.GetType().Assembly : Reflection.Value(migrationsAssembly, "Assembly") as Assembly ?? context.GetType().Assembly;
+            Reflection.EnsureTypesReadable(migrationsAssemblyInstance, "the migrations assembly EF Core reports for the selected DbContext");
             object? entries = migrationsAssembly is null ? null : contract?.GetProperty("Migrations")?.GetValue(migrationsAssembly);
             if (entries is not System.Collections.IEnumerable enumerable)
                 throw new InvalidOperationException();
 
-            migrationsAssemblyInstance = Reflection.Value(migrationsAssembly!, "Assembly") as Assembly ?? context.GetType().Assembly;
             foreach (object entry in enumerable)
             {
                 string? migrationId = Reflection.String(entry, "Key");
@@ -962,11 +964,12 @@ internal static class Reflection
     private const int NotesLimit = 10;
     private const int NoteTextLimit = 400;
 
-    // Assemblies whose whole type enumeration failed outright. EfGuard reads the selected context's own
-    // assembly and its attributed migration classes from these assemblies, so an unreadable one of those is
-    // fatal; every other copied assembly is peripheral to migration attribution and is skipped instead.
+    // Assemblies whose type enumeration did not complete. EfGuard reads the selected context's own assembly
+    // and its attributed migration classes from these assemblies, so an unreadable one of those is fatal;
+    // every other copied assembly is peripheral to migration attribution and is skipped instead.
     private static readonly Dictionary<string, string> unreadableAssemblies = new(StringComparer.Ordinal);
-    private static readonly HashSet<string> notes = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, string> notes = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> fatalAssemblies = new(StringComparer.Ordinal);
     private static IReadOnlyList<Assembly> assemblies = [];
 
     internal static void SetAssemblies(IReadOnlyList<Assembly> loadedAssemblies)
@@ -974,6 +977,7 @@ internal static class Reflection
         assemblies = loadedAssemblies;
         unreadableAssemblies.Clear();
         notes.Clear();
+        fatalAssemblies.Clear();
     }
 
     /// <summary>
@@ -992,8 +996,10 @@ internal static class Reflection
         }
         catch (ReflectionTypeLoadException exception)
         {
-            // The loader kept every type it could resolve and EF Core itself reads constructible types from
-            // such a partial result, so the readable types stay usable and only the rest are skipped.
+            // The loader kept every type it could resolve, so peripheral assemblies can still be used where
+            // appropriate. Selected context and migrations assemblies are marked unreadable and rejected by
+            // their callers instead of silently producing a partial report.
+            RecordUnreadable(assembly, exception);
             RecordNote(assembly, requestedMember, exception);
             return exception.Types.Where(type => type is not null).Cast<Type>().ToArray();
         }
@@ -1008,7 +1014,10 @@ internal static class Reflection
     internal static bool TryGetTypes(Assembly assembly, out Type[] types)
     {
         types = GetTypesOrRecord(assembly);
-        return !unreadableAssemblies.ContainsKey(Key(assembly));
+        bool readable = !unreadableAssemblies.ContainsKey(Key(assembly));
+        if (!readable)
+            fatalAssemblies.Add(Key(assembly));
+        return readable;
     }
 
     /// <summary>
@@ -1016,8 +1025,12 @@ internal static class Reflection
     /// </summary>
     internal static void EnsureTypesReadable(Assembly assembly, string role)
     {
+        _ = GetTypesOrRecord(assembly);
         if (unreadableAssemblies.ContainsKey(Key(assembly)))
+        {
+            fatalAssemblies.Add(Key(assembly));
             throw new ExtractionFailureException(UnreadableAssemblyMessage(assembly, role));
+        }
     }
 
     internal static string UnreadableAssemblyMessage(Assembly assembly, string role)
@@ -1042,12 +1055,15 @@ internal static class Reflection
 
     internal static void WriteRecordedNotes()
     {
-        foreach (string note in notes.Take(NotesLimit))
+        foreach (string note in RecordedNotes())
         {
             try { Console.Error.WriteLine("EfGuard note: " + note); }
             catch { }
         }
     }
+
+    internal static List<string> RecordedNotes()
+        => notes.Where(pair => !fatalAssemblies.Contains(pair.Key)).Select(pair => pair.Value).Take(NotesLimit).ToList();
 
     internal static object? Value(object instance, string name) => instance.GetType().GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetValue(instance);
     internal static string? String(object instance, string name) => Value(instance, name)?.ToString() ?? InvokeNoArgument(instance, name)?.ToString();
@@ -1105,17 +1121,22 @@ internal static class Reflection
     }
 
     private static void RecordUnreadable(Assembly assembly, Exception exception)
-        => unreadableAssemblies[Key(assembly)] = Describe(exception);
+    {
+        string description = exception is ReflectionTypeLoadException partial
+            ? partial.GetType().Name + ": " + (partial.LoaderExceptions.Where(error => error is not null).Select(Describe).FirstOrDefault() ?? Describe(partial))
+            : Describe(exception);
+        unreadableAssemblies[Key(assembly)] = description.Length <= NoteTextLimit ? description : description[..NoteTextLimit];
+    }
 
     private static void RecordNote(Assembly assembly, string? requestedMember, Exception exception)
     {
         ReflectionTypeLoadException? partial = exception as ReflectionTypeLoadException;
         string reason = partial is null
             ? Describe(exception)
-            : partial.LoaderExceptions.Where(error => error is not null).Select(Describe).FirstOrDefault() ?? Describe(exception);
-        string outcome = partial is null ? "skipped '" : "read only the loadable types of '";
-        _ = notes.Add(outcome + DisplayName(assembly) + "'"
-            + (requestedMember is null ? "" : " while resolving '" + requestedMember + "'") + " because " + reason);
+            : partial.GetType().Name + ": " + (partial.LoaderExceptions.Where(error => error is not null).Select(Describe).FirstOrDefault() ?? Describe(exception));
+        string outcome = "Skipped unreadable peripheral assembly '";
+        notes[Key(assembly)] = outcome + DisplayName(assembly) + "'"
+            + (requestedMember is null ? "" : " while resolving '" + requestedMember + "'") + " because " + reason;
     }
 
     private static string Describe(Exception? exception)
