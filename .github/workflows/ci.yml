@@ -181,7 +181,7 @@ jobs:
     env:
       EFGUARD_PROVIDER_ENGINE: sqlserver
       EFGUARD_SQLSERVER_CONNECTION: "Server=localhost,1433;Initial Catalog=master;User Id=sa;Password=EfGuard_Ci1!;TrustServerCertificate=True;Encrypt=False"
-      EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ runner.temp }}/provider-engine-sqlserver.json
+      EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ github.workspace }}/artifacts/provider-engine-sqlserver.json
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -254,7 +254,7 @@ jobs:
         with:
           name: provider-engine-evidence-sqlserver
           if-no-files-found: warn
-          path: ${{ runner.temp }}/provider-engine-sqlserver.json
+          path: ${{ github.workspace }}/artifacts/provider-engine-sqlserver.json
 
   provider-engine-postgresql:
     name: Provider engine / PostgreSQL
@@ -276,7 +276,7 @@ jobs:
     env:
       EFGUARD_PROVIDER_ENGINE: postgresql
       EFGUARD_POSTGRES_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=EfGuard_Ci1!"
-      EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ runner.temp }}/provider-engine-postgresql.json
+      EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ github.workspace }}/artifacts/provider-engine-postgresql.json
     steps:
       - name: Check out source
         uses: actions/checkout@v7
@@ -349,7 +349,7 @@ jobs:
         with:
           name: provider-engine-evidence-postgresql
           if-no-files-found: warn
-          path: ${{ runner.temp }}/provider-engine-postgresql.json
+          path: ${{ github.workspace }}/artifacts/provider-engine-postgresql.json
 
   package:
     name: Package / inspect and consume

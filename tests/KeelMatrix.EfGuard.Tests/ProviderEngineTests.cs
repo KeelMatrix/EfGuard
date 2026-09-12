@@ -307,6 +307,10 @@ internal static class ProviderEngine
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
+            string? directory = Path.GetDirectoryName(Path.GetFullPath(path));
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
             ProviderEngineEvidence evidence = new()
             {
                 Version = 1,
