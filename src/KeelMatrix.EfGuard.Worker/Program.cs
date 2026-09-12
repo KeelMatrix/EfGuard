@@ -49,12 +49,16 @@ internal static class Program
         Directory.CreateDirectory(projectOutput);
         Directory.CreateDirectory(startupOutput);
         stage = "build-project";
-        if (!await BuildAsync(request.ProjectPath, projectOutput, Path.Combine(request.OutputDirectory, "project-obj")).ConfigureAwait(false))
-            return Failure("The selected EF project could not be built.");
+        BuildOutcome projectBuild = await BuildAsync(request.ProjectPath, projectOutput).ConfigureAwait(false);
+        if (!projectBuild.Success)
+            return Failure(projectBuild.Error ?? "The selected EF project could not be built.");
         stage = "build-startup";
-        if (!Path.GetFullPath(request.StartupProjectPath).Equals(Path.GetFullPath(request.ProjectPath), StringComparison.OrdinalIgnoreCase)
-            && !await BuildAsync(request.StartupProjectPath, startupOutput, Path.Combine(request.OutputDirectory, "startup-obj")).ConfigureAwait(false))
-            return Failure("The selected startup project could not be built.");
+        if (!Path.GetFullPath(request.StartupProjectPath).Equals(Path.GetFullPath(request.ProjectPath), StringComparison.OrdinalIgnoreCase))
+        {
+            BuildOutcome startupBuild = await BuildAsync(request.StartupProjectPath, startupOutput).ConfigureAwait(false);
+            if (!startupBuild.Success)
+                return Failure(startupBuild.Error ?? "The selected startup project could not be built.");
+        }
 
         stage = "load-assemblies";
         string[] probingPaths = [projectOutput, startupOutput];
@@ -92,7 +96,7 @@ internal static class Program
             stage = "read-model";
             ModelSnapshot model = ReadModel(context);
             stage = "read-migrations";
-            List<NormalizedOperation> operations = ReadMigrations(assemblies, provider, context, out ProviderSqlEvidence providerSql);
+            List<NormalizedOperation> operations = ReadMigrations(context, assemblies, provider, supported, out ProviderSqlEvidence providerSql);
             stage = "generate-provider-sql";
             return new ExtractionResult
             {
@@ -106,6 +110,10 @@ internal static class Program
                 Operations = operations
             };
         }
+        catch (InvalidOperationException exception) when (stage == "read-migrations")
+        {
+            return Failure(exception.Message);
+        }
         catch { return Failure("The EF extraction worker failed during " + stage + "."); }
         finally
         {
@@ -113,10 +121,9 @@ internal static class Program
         }
     }
 
-    private static async Task<bool> BuildAsync(string projectPath, string outputPath, string intermediatePath)
+    private static async Task<BuildOutcome> BuildAsync(string projectPath, string outputPath)
     {
         Directory.CreateDirectory(outputPath);
-        Directory.CreateDirectory(intermediatePath);
         ProcessStartInfo startInfo = new()
         {
             FileName = "dotnet",
@@ -128,14 +135,9 @@ internal static class Program
         };
         foreach (string argument in new[]
         {
-            "build", projectPath, "--configuration", "Release", "--nologo",
+            "build", projectPath, "--configuration", "Release", "--nologo", "--no-restore",
             "/p:OutputPath=" + EnsureTrailingSeparator(outputPath),
-            "/p:BaseIntermediateOutputPath=" + EnsureTrailingSeparator(intermediatePath),
-            "/p:IntermediateOutputPath=" + EnsureTrailingSeparator(intermediatePath),
-            "/p:MSBuildProjectExtensionsPath=" + EnsureTrailingSeparator(intermediatePath),
-            "/p:CopyLocalLockFileAssemblies=true",
-            "/p:DefaultItemExcludes=**\\obj\\**",
-            "/p:RestoreIgnoreFailedSources=true"
+            "/p:CopyLocalLockFileAssemblies=true"
         })
             startInfo.ArgumentList.Add(argument);
 
@@ -143,7 +145,7 @@ internal static class Program
         try
         {
             if (!process.Start())
-                return false;
+                return new BuildOutcome(false, "The selected EF project could not be built.");
             Task<string> output = ReadBoundedAsync(process.StandardOutput.BaseStream);
             Task<string> error = ReadBoundedAsync(process.StandardError.BaseStream);
             Task waitTask = process.WaitForExitAsync();
@@ -151,12 +153,22 @@ internal static class Program
             if (completed != waitTask)
             {
                 TryKill(process);
-                return false;
+                return new BuildOutcome(false, "The selected EF project did not build within the extraction timeout.");
             }
             await Task.WhenAll(output, error).ConfigureAwait(false);
-            return process.ExitCode == 0 && output.Result.Length < 65536 && error.Result.Length < 65536;
+            if (process.ExitCode == 0 && output.Result.Length < 65536 && error.Result.Length < 65536)
+                return new BuildOutcome(true, null);
+            if (IndicatesMissingRestore(output.Result, error.Result))
+                return new BuildOutcome(false, "The dependency graph for " + Path.GetFileName(projectPath) + " is not restored. Run 'dotnet restore' for the project and its referenced projects, then run EfGuard again; EfGuard does not restore packages or contact package feeds.");
+            return new BuildOutcome(false, "The selected EF project could not be built.");
         }
-        catch { return false; }
+        catch { return new BuildOutcome(false, "The selected EF project could not be built."); }
+    }
+
+    private static bool IndicatesMissingRestore(string output, string error)
+    {
+        string combined = output + "\n" + error;
+        return Regex.IsMatch(combined, @"NETSDK1004|project\.assets\.json\s*(was not found|not found)|Run a NuGet package restore", RegexOptions.IgnoreCase);
     }
 
     private static async Task<string> ReadBoundedAsync(Stream stream)
@@ -203,19 +215,17 @@ internal static class Program
         return result;
     }
 
-    private static List<NormalizedOperation> ReadMigrations(IEnumerable<Assembly> assemblies, string provider, object context, out ProviderSqlEvidence providerSql)
+    private static List<NormalizedOperation> ReadMigrations(object context, IEnumerable<Assembly> assemblies, string provider, bool providerSupported, out ProviderSqlEvidence providerSql)
     {
         List<NormalizedOperation> result = [];
         List<(string Migration, List<object> Operations)> rawMigrations = [];
-        IEnumerable<Type> migrationTypes = assemblies.SelectMany(SafeGetTypes).Where(type => !type.IsAbstract && IsMigration(type)).OrderBy(MigrationId, StringComparer.Ordinal);
-        foreach (Type migrationType in migrationTypes)
+        foreach ((string migrationId, Type migrationType) in ResolveContextMigrations(context, assemblies, providerSupported))
         {
             try
             {
                 object? migration = Activator.CreateInstance(migrationType);
                 if (migration is null)
                     continue;
-                string migrationId = MigrationId(migrationType) ?? migrationType.Name;
                 Type? builderType = migrationType.Assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder")
                     ?? assemblies.Select(a => a.GetType("Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder")).FirstOrDefault(t => t is not null);
                 if (builderType is null)
@@ -236,11 +246,66 @@ internal static class Program
             }
             catch
             {
-                result.Add(new NormalizedOperation { Kind = "custom-operation", Migration = MigrationId(migrationType) ?? migrationType.Name });
+                result.Add(new NormalizedOperation { Kind = "custom-operation", Migration = migrationId });
             }
         }
         providerSql = GenerateMigrationSql(context, assemblies, rawMigrations);
         return result;
+    }
+
+    /// <summary>
+    /// Resolves the migrations that belong to the selected context using EF's own migrations metadata
+    /// instead of every loaded <c>Migration</c> subclass, so a multi-context project cannot analyze
+    /// another context's migrations.
+    /// </summary>
+    private static List<(string MigrationId, Type MigrationType)> ResolveContextMigrations(object context, IEnumerable<Assembly> assemblies, bool providerSupported)
+    {
+        List<(string MigrationId, Type MigrationType)> migrations = [];
+        try
+        {
+            Type? contract = assemblies.Select(assembly => assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly")).FirstOrDefault(type => type is not null);
+            object? services = GetInfrastructureServiceProvider(context);
+            object? migrationsAssembly = contract is null || services is not IServiceProvider serviceProvider ? null : serviceProvider.GetService(contract);
+            if (migrationsAssembly is null)
+                throw new InvalidOperationException();
+
+            if (contract?.GetProperty("Migrations")?.GetValue(migrationsAssembly) is System.Collections.IEnumerable entries)
+            {
+                foreach (object entry in entries)
+                {
+                    string? migrationId = Reflection.String(entry, "Key");
+                    object? value = Reflection.Value(entry, "Value");
+                    if (value is TypeInfo typeInfo)
+                        value = typeInfo.AsType();
+                    if (value is not Type migrationType || migrationType.IsAbstract || !IsMigration(migrationType))
+                        continue;
+                    migrations.Add((migrationId ?? MigrationId(migrationType) ?? migrationType.Name, migrationType));
+                }
+            }
+
+            if (migrations.Count == 0)
+            {
+                Assembly migrationsAssemblyInstance = Reflection.Value(migrationsAssembly, "Assembly") as Assembly ?? context.GetType().Assembly;
+                migrations.AddRange(SafeGetTypes(migrationsAssemblyInstance)
+                    .Where(type => !type.IsAbstract && IsMigration(type))
+                    .Select(type => (MigrationId(type) ?? type.Name, type)));
+            }
+        }
+        catch when (!providerSupported)
+        {
+            // Unsupported providers are reported as unsupported by the caller and never receive
+            // provider-specific migration analysis, so missing relational metadata is not fatal here.
+            return [];
+        }
+        catch
+        {
+            throw new InvalidOperationException("The migrations for the selected DbContext could not be resolved during extraction.");
+        }
+
+        return migrations
+            .OrderBy(migration => migration.MigrationId, StringComparer.Ordinal)
+            .ThenBy(migration => migration.MigrationType.FullName, StringComparer.Ordinal)
+            .ToList();
     }
 
     private static NormalizedOperation Normalize(object operation, string migrationId, int operationIndex)
@@ -265,9 +330,9 @@ internal static class Program
         }
         if (type.EndsWith("AlterColumnOperation", StringComparison.Ordinal))
         {
-            result.Kind = "alter-column"; FillTableColumn(result, operation); result.ClrType = Reflection.TypeName(operation, "ClrType"); result.IsNullable = Reflection.Bool(operation, "IsNullable"); result.MaxLength = Reflection.Int(operation, "MaxLength"); result.Precision = Reflection.Byte(operation, "Precision"); result.Scale = Reflection.Byte(operation, "Scale"); result.Collation = Reflection.String(operation, "Collation");
+            result.Kind = "alter-column"; FillTableColumn(result, operation); result.ColumnType = Reflection.String(operation, "ColumnType"); result.ClrType = Reflection.TypeName(operation, "ClrType"); result.IsNullable = Reflection.Bool(operation, "IsNullable"); result.MaxLength = Reflection.Int(operation, "MaxLength"); result.Precision = Reflection.Byte(operation, "Precision"); result.Scale = Reflection.Byte(operation, "Scale"); result.Collation = Reflection.String(operation, "Collation");
             object? old = Reflection.Value(operation, "OldColumn");
-            if (old is not null) { result.OldClrType = Reflection.TypeName(old, "ClrType"); result.OldIsNullable = Reflection.Bool(old, "IsNullable", true); result.OldMaxLength = Reflection.Int(old, "MaxLength"); result.OldPrecision = Reflection.Byte(old, "Precision"); result.OldScale = Reflection.Byte(old, "Scale"); result.OldCollation = Reflection.String(old, "Collation"); }
+            if (old is not null) { result.HasOldColumn = true; result.OldColumnType = Reflection.String(old, "ColumnType"); result.OldClrType = Reflection.TypeName(old, "ClrType"); result.OldIsNullable = Reflection.Bool(old, "IsNullable", true); result.OldMaxLength = Reflection.Int(old, "MaxLength"); result.OldPrecision = Reflection.Byte(old, "Precision"); result.OldScale = Reflection.Byte(old, "Scale"); result.OldCollation = Reflection.String(old, "Collation"); }
             return result;
         }
         if (type.EndsWith("AddColumnOperation", StringComparison.Ordinal))
@@ -807,6 +872,7 @@ internal static class Program
     internal static bool IsSharedFrameworkAssembly(string? name)
         => name?.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) == true
             || name?.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal) == true;
+    private sealed record BuildOutcome(bool Success, string? Error);
     private static ExtractionResult Failure(string message) => new() { Success = false, Error = message };
     private static string EnsureTrailingSeparator(string path) => path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
     private static void TryKill(Process process) { try { if (!process.HasExited) process.Kill(true); } catch { } }

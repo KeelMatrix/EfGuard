@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 The first release remains unpublished.
 
+### Fixed
+
+- `--context` now scopes migration discovery to the selected `DbContext` using EF Core migrations metadata, so migrations that belong to another context are no longer analyzed for the selected context.
+- Extraction builds the selected project with `--no-restore` against the dependency graph the caller already restored, never performs an implicit network restore, and fails with an actionable diagnostic when that graph is missing. Baseline analysis reuses the same restored graph from an isolated temporary checkout.
+- `EFG202` now detects unbounded-to-bounded text narrowing, including SQL Server `nvarchar(max)` to `nvarchar(32)` and PostgreSQL `text` to `character varying(32)`.
+- Provider-behavior findings (EFG301, EFG302, EFG303) are reported with `HIGH`/`high` confidence only when real SQL Server and PostgreSQL engine integration evidence covers the claim. Without that evidence they are reported as `UNVERIFIED`, and `providerSql.engineVerified` stays `false`.
+
 ## [0.1.0] (Unreleased)
 
 ### Added

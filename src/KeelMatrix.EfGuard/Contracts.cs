@@ -72,8 +72,11 @@ internal sealed class NormalizedOperation
     public string? Column { get; set; }
     public string? NewColumn { get; set; }
     public string? PrincipalTable { get; set; }
+    public string? ColumnType { get; set; }
+    public string? OldColumnType { get; set; }
     public string? ClrType { get; set; }
     public string? OldClrType { get; set; }
+    public bool HasOldColumn { get; set; }
     public bool IsNullable { get; set; }
     public bool? OldIsNullable { get; set; }
     public int? MaxLength { get; set; }

@@ -164,9 +164,196 @@ jobs:
           "Provider: $($report.provider)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           "Generated SQL statements: $($statements.Count)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
+  provider-engine-sqlserver:
+    name: Provider engine / SQL Server
+    needs: platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: "Developer"
+          MSSQL_SA_PASSWORD: "EfGuard_Ci1!"
+        ports:
+          - 1433:1433
+    env:
+      EFGUARD_PROVIDER_ENGINE: sqlserver
+      EFGUARD_SQLSERVER_CONNECTION: "Server=localhost,1433;Initial Catalog=master;User Id=sa;Password=EfGuard_Ci1!;TrustServerCertificate=True;Encrypt=False"
+      EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ runner.temp }}/provider-engine-sqlserver.json
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.424
+            9.0.121
+            10.0.400
+
+      - name: Verify telemetry opt-out
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
+          }
+
+      - name: Restore
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+
+      - name: Build Release
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+
+      - name: Run real-engine integration tests
+        run: >
+          dotnet test tests/KeelMatrix.EfGuard.Tests/KeelMatrix.EfGuard.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter FullyQualifiedName~SqlServerProviderEngineTests
+
+      - name: Verify recorded engine evidence matches the shipped manifest
+        shell: pwsh
+        run: >
+          ./build/Compare-ProviderEngineEvidence.ps1
+          -Engine sqlserver
+          -RecordedEvidencePath $env:EFGUARD_PROVIDER_ENGINE_EVIDENCE
+
+      - name: Verify provider confidence follows engine evidence
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "efguard-sqlserver-engine.json"
+          $errorPath = Join-Path $env:RUNNER_TEMP "efguard-sqlserver-engine.stderr"
+          $process = Start-Process -FilePath dotnet -ArgumentList @(
+            "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
+            "--configuration", "Release", "--no-build", "--no-restore", "--",
+            "check", "--project", "fixtures/Ef9SqlServer/Ef9SqlServerFixture.csproj", "--format", "json"
+          ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
+          if ($process.ExitCode -notin @(0, 1)) {
+            $error = Get-Content -Raw $errorPath -ErrorAction SilentlyContinue
+            throw "EfGuard fixture scan failed with unexpected exit code $($process.ExitCode). $error"
+          }
+
+          $report = Get-Content -Raw $reportPath | ConvertFrom-Json
+          if (-not $report.providerSql.engineVerified) {
+            throw "The SQL Server report did not mark provider SQL evidence as engine verified."
+          }
+
+          $finding = @($report.diagnostics | Where-Object { $_.ruleId -eq "EFG301" })
+          if ($finding.Count -ne 1 -or $finding[0].confidence -ne "high" -or $finding[0].severity -ne "high") {
+            throw "EFG301 was not reported with HIGH/high confidence after real SQL Server engine verification."
+          }
+
+          "EFG301 confidence: $($finding[0].severity)/$($finding[0].confidence)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload recorded engine evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: provider-engine-evidence-sqlserver
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/provider-engine-sqlserver.json
+
+  provider-engine-postgresql:
+    name: Provider engine / PostgreSQL
+    needs: platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: "EfGuard_Ci1!"
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      EFGUARD_PROVIDER_ENGINE: postgresql
+      EFGUARD_POSTGRES_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=EfGuard_Ci1!"
+      EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ runner.temp }}/provider-engine-postgresql.json
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.424
+            9.0.121
+            10.0.400
+
+      - name: Verify telemetry opt-out
+        shell: pwsh
+        run: |
+          if ($env:KEELMATRIX_NO_TELEMETRY -ne "1") {
+            throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
+          }
+
+      - name: Restore
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+
+      - name: Build Release
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+
+      - name: Run real-engine integration tests
+        run: >
+          dotnet test tests/KeelMatrix.EfGuard.Tests/KeelMatrix.EfGuard.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --filter FullyQualifiedName~PostgreSqlProviderEngineTests
+
+      - name: Verify recorded engine evidence matches the shipped manifest
+        shell: pwsh
+        run: >
+          ./build/Compare-ProviderEngineEvidence.ps1
+          -Engine postgresql
+          -RecordedEvidencePath $env:EFGUARD_PROVIDER_ENGINE_EVIDENCE
+
+      - name: Verify provider confidence follows engine evidence
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "efguard-postgresql-engine.json"
+          $errorPath = Join-Path $env:RUNNER_TEMP "efguard-postgresql-engine.stderr"
+          $process = Start-Process -FilePath dotnet -ArgumentList @(
+            "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
+            "--configuration", "Release", "--no-build", "--no-restore", "--",
+            "check", "--project", "fixtures/Ef9/Ef9Fixture.csproj", "--format", "json"
+          ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
+          if ($process.ExitCode -notin @(0, 1)) {
+            $error = Get-Content -Raw $errorPath -ErrorAction SilentlyContinue
+            throw "EfGuard fixture scan failed with unexpected exit code $($process.ExitCode). $error"
+          }
+
+          $report = Get-Content -Raw $reportPath | ConvertFrom-Json
+          if (-not $report.providerSql.engineVerified) {
+            throw "The PostgreSQL report did not mark provider SQL evidence as engine verified."
+          }
+
+          $finding = @($report.diagnostics | Where-Object { $_.ruleId -eq "EFG302" })
+          if ($finding.Count -ne 1 -or $finding[0].confidence -ne "high" -or $finding[0].severity -ne "high") {
+            throw "EFG302 was not reported with HIGH/high confidence after real PostgreSQL engine verification."
+          }
+
+          "EFG302 confidence: $($finding[0].severity)/$($finding[0].confidence)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload recorded engine evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: provider-engine-evidence-postgresql
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/provider-engine-postgresql.json
+
   package:
     name: Package / inspect and consume
-    needs: [ platform, provider-evidence ]
+    needs: [ platform, provider-evidence, provider-engine-sqlserver, provider-engine-postgresql ]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -191,6 +378,10 @@ jobs:
       - name: Validate changelog contract coverage
         shell: pwsh
         run: ./build/Test-Validate-Changelog.ps1
+
+      - name: Validate provider engine evidence contract coverage
+        shell: pwsh
+        run: ./build/Test-Compare-ProviderEngineEvidence.ps1
 
       - name: Snapshot telemetry state
         shell: pwsh

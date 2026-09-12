@@ -40,6 +40,19 @@ efguard check --project src/Orders/Orders.csproj --startup-project src/Orders.Ap
 
 With `--startup-project`, EfGuard follows the normal EF Core design-time startup path in a bounded child process: it resolves the startup host through `BuildWebHost`, `CreateWebHostBuilder`, `CreateHostBuilder`, or the startup entry point, then resolves the selected `DbContext` (or `IDbContextFactory<TContext>`) from the startup application's scoped services. An `IDesignTimeDbContextFactory<TContext>` and then a parameterless constructor are fallbacks when startup services do not provide the context. Keep all design-time startup code and factories free of production connections and side effects. The worker response file is limited to 4 MiB (4,194,304 bytes); an oversized response is an untrustworthy extraction failure and returns exit code `2`.
 
+In repositories with more than one `DbContext`, `--context` also scopes migration discovery. EfGuard resolves the migrations of the selected context from EF Core's own migrations metadata (the `IMigrationsAssembly` service and the context's configured migrations assembly) instead of every loaded `Migration` subclass, so migrations that belong to another context are never analyzed for the selected context.
+
+## Network and offline behavior
+
+Core analysis is local and offline. EfGuard never restores packages and never contacts a package feed, so the dependency graph must come from a restore you already ran:
+
+```bash
+dotnet restore src/Orders/Orders.csproj
+efguard check --project src/Orders/Orders.csproj
+```
+
+Extraction builds the selected project with `--no-restore` against that restored graph. When the graph is missing, EfGuard fails closed with exit code `2` and tells you to run `dotnet restore`; it never silently falls back to a network restore. `--baseline` reuses the same restored graph from your working tree inside an isolated temporary checkout, so the active worktree is never modified. The only normal network behavior is best-effort telemetry.
+
 ## Exit codes and output
 
 - `0`: trustworthy analysis completed with no configured blocking or unverified diagnostic.
@@ -48,7 +61,7 @@ With `--startup-project`, EfGuard follows the normal EF Core design-time startup
 
 Use `--format json` for automation. JSON has `schemaVersion: 1`, `provider`, `providerSql`, `compatibility`, `baseline`, `summary`, `diagnostics`, and `errors`. Each diagnostic contains `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, optional provider/migration/location, `affectedState`, `explanation`, `remediation`, and `uncertainty`.
 
-`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. Each statement carries its migration and operation ordinal, and provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. It is local evidence only: `engineVerified` remains false unless a real database-engine integration gate has verified the behavior. A provider-locking diagnostic without matching generated-SQL evidence is reported as `UNVERIFIED` rather than as a high-confidence claim.
+`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. Each statement carries its migration and operation ordinal, and provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. `engineVerified` is true only when the repository's real database-engine integration gates have verified the provider behavior behind every provider finding in the report. EfGuard ships that evidence as a versioned provider engine evidence manifest, and it only promotes a provider-locking finding to `HIGH`/`high` confidence when the manifest covers the finding's rule and provider. Missing or unverified engine evidence leaves the finding `UNVERIFIED` instead of asserting a high-confidence provider claim.
 
 ## Configuration and suppressions
 
@@ -97,6 +110,8 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 
 Unknown operations, raw SQL, and custom operations are never silently treated as safe. Transaction suppression is an independent risk dimension: arbitrary SQL retains EFG399 and may also report EFG305, while a classified unbounded backfill may report EFG304 and EFG305 together. SQL is classified locally and is not included in telemetry. Provider lock behavior depends on engine version, capabilities, and workload; EfGuard cannot guarantee zero downtime.
 
+Provider behavior claims (EFG301, EFG302, and EFG303) are promoted to `HIGH`/`high` confidence only when the repository's real SQL Server and PostgreSQL integration gates have verified that behavior and the shipped provider engine evidence covers the provider. Those gates execute the provider-generated statements against real engines and record the verified claims; unverified claims stay `UNVERIFIED` and normally produce exit code `1`.
+
 ## Rollout guidance
 
 Prefer expand, transition, cutover, and contract stages. Add compatible schema first, deploy code that can read both generations, backfill in bounded/resumable batches, switch reads/writes, and remove old schema only after old instances are retired. Provider-specific online or concurrent options still require operational validation.
@@ -122,6 +137,7 @@ The compatibility fixture matrix exercises each supported EF/provider family:
 - **Project or `DbContext` discovery is ambiguous:** use `--project path/to/App.csproj`, `--startup-project path/to/App.Api.csproj`, and `--context AppDbContext`. When automatic discovery fails, the error identifies the missing or ambiguous selection and shows the corrective option shape.
 - **The startup services, design-time factory, or context constructor fails:** run the same design-time path locally, keep it free of production connections and side effects, and ensure the selected startup project is restored and buildable. EfGuard resolves startup services first, then falls back to the design-time factory and parameterless constructor inside a bounded child process; a failure returns exit code `2`.
 - **The baseline Git reference cannot be read:** verify the ref exists locally, the selected project is present at that ref, and the repository has a usable Git checkout. Baseline extraction is isolated and never rewrites the active worktree; failure returns exit code `2`.
+- **The dependency graph is not restored:** run `dotnet restore` for the selected project and its referenced projects first. EfGuard never restores packages and never contacts a package feed; a missing restored graph is reported as a clear extraction failure with exit code `2`. If `--baseline` reports the same failure, the project's restored graph is missing from your working tree or the baseline dependency set is not available offline.
 - **Extraction times out or exceeds the output limit:** reduce the selected project/startup scope and design-time logging. Worker execution is bounded and response output is limited to 4 MiB; either condition is an untrustworthy extraction failure and returns exit code `2`.
 - **The provider is unsupported:** SQL Server/Azure SQL and PostgreSQL through Npgsql are supported in v1. Other providers produce EFG900 and exit code `2`; no provider-locking claim is inferred.
 - **The report contains `UNVERIFIED`:** inspect EFG399 or the provider diagnostic's uncertainty text. Unknown operations and provider findings without generated-SQL evidence fail closed and normally produce exit code `1`; review the migration and provider evidence before overriding policy.
