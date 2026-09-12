@@ -25,6 +25,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "changelog contract regression coverage failed." }
 
     Invoke-Dotnet @("restore", "KeelMatrix.EfGuard.sln", "--configfile", "NuGet.config")
+
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Dependencies.ps1") -SolutionPath "KeelMatrix.EfGuard.sln"
+    if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit failed." }
+
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Dependencies.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit contract coverage failed." }
+
     Invoke-Dotnet @("build", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-restore")
     Invoke-Dotnet @("test", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-build", "--no-restore")
     Invoke-Dotnet @("format", "KeelMatrix.EfGuard.sln", "--verify-no-changes", "--no-restore")

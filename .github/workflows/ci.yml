@@ -388,15 +388,4 @@ jobs:
 
       - name: Check for vulnerable dependencies
         shell: pwsh
-        run: |
-          $report = (& dotnet list KeelMatrix.EfGuard.sln package --vulnerable --include-transitive 2>&1 | Out-String)
-          $status = $LASTEXITCODE
-          $report | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY
-
-          if ($status -ne 0) {
-            throw "The vulnerability command failed with exit code $status."
-          }
-
-          if ($report -match '(?im)has the following vulnerable package') {
-            throw "The dependency graph contains vulnerable packages."
-          }
+        run: ./build/Validate-Dependencies.ps1 -SolutionPath KeelMatrix.EfGuard.sln

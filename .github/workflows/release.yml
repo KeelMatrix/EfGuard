@@ -67,6 +67,14 @@ jobs:
       - name: Restore
         run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config --no-cache --force
 
+      - name: Check for vulnerable dependencies
+        shell: pwsh
+        run: ./build/Validate-Dependencies.ps1 -SolutionPath KeelMatrix.EfGuard.sln
+
+      - name: Verify dependency audit fails closed
+        shell: pwsh
+        run: ./build/Test-Validate-Dependencies.ps1
+
       - name: Build Release
         env:
           RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
