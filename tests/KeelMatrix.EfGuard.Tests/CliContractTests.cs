@@ -38,6 +38,27 @@ public sealed class CliContractTests
         Assert.Empty(result.StandardError);
     }
 
+    /// <summary>
+    /// A project that references the standard design-time package must scan like any other project: real
+    /// operations, a real provider, and no extraction error, for both EF Core 9 and EF Core 10 projects.
+    /// </summary>
+    [Theory]
+    [InlineData("Ef9Design")]
+    [InlineData("Ef10Design")]
+    public async Task BuiltExecutableScansProjectsThatReferenceTheDesignTimePackage(string fixture)
+    {
+        ProcessResult result = await RunCliAsync(["check", "--project", $"fixtures/{fixture}/{fixture}Fixture.csproj", "--format", "json"]);
+
+        Assert.Equal(1, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Empty(document.RootElement.GetProperty("errors").EnumerateArray());
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", document.RootElement.GetProperty("provider").GetString());
+        Assert.Equal(1, document.RootElement.GetProperty("summary").GetProperty("operationsInspected").GetInt32());
+        Assert.Contains(document.RootElement.GetProperty("diagnostics").EnumerateArray(), diagnostic => diagnostic.GetProperty("ruleId").GetString() == "EFG201");
+        Assert.True(document.RootElement.GetProperty("providerSql").GetProperty("available").GetBoolean());
+        Assert.Empty(result.StandardError);
+    }
+
     [Fact]
     public async Task BuiltExecutableConsoleFindingRendersAffectedStateAndRiskDimensions()
     {

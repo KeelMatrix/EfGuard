@@ -31,6 +31,10 @@ public sealed class ExtractionFixtureTests
     [InlineData("Ef9SqlServer", "Microsoft.EntityFrameworkCore.SqlServer", "create-index")]
     [InlineData("Ef10", "Microsoft.EntityFrameworkCore.SqlServer", "add-column")]
     [InlineData("Ef10Postgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "add-column")]
+    [InlineData("Ef8Design", "Microsoft.EntityFrameworkCore.SqlServer", "drop-column")]
+    [InlineData("Ef9Design", "Microsoft.EntityFrameworkCore.SqlServer", "drop-column")]
+    [InlineData("Ef10Design", "Microsoft.EntityFrameworkCore.SqlServer", "drop-column")]
+    [InlineData("Ef10DesignPrivate", "Microsoft.EntityFrameworkCore.SqlServer", "create-index")]
     public async Task SupportedEfFixtureIsExtractedOutOfProcess(string fixture, string provider, string operationKind)
     {
         string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));
@@ -40,6 +44,26 @@ public sealed class ExtractionFixtureTests
         Assert.Equal(provider, result.Provider);
         Assert.True(result.ProviderSqlGenerated);
         Assert.Contains(result.Operations, operation => operation.Kind == operationKind);
+    }
+
+    /// <summary>
+    /// The worker copies the scanned project's dependency graph, so the standard design-time package
+    /// <c>Microsoft.EntityFrameworkCore.Design</c> puts MSBuild/Roslyn support assemblies next to the project
+    /// output. One of those assemblies failing to load must not abort the read-model for an EF Core 8/9/10
+    /// project that references it.
+    /// </summary>
+    [Fact]
+    public async Task DesignTimePackageInTheStartupProjectIsExtracted()
+    {
+        string project = FixtureProject("Ef9DesignApp");
+        string startup = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(project)!, "..", "Ef9DesignAppHost", "Ef9DesignAppHost.csproj"));
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, startup, null, CancellationToken.None);
+
+        Assert.True(result.Success, $"Extraction failed: {result.Error ?? "(no error returned)"}");
+        Assert.Equal("Microsoft.EntityFrameworkCore.SqlServer", result.Provider);
+        Assert.Contains(result.Operations, operation => operation.Kind == "drop-column" && operation.Migration == "20240206000000_DropStartupDesignLegacyCode");
+        Assert.True(result.ProviderSql.Available);
     }
 
     [Fact]
