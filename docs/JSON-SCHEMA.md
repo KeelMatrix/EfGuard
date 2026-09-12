@@ -5,7 +5,7 @@
 - `schemaVersion`: integer `1`.
 - `toolVersion`: tool version.
 - `provider`: provider identity when extraction succeeded.
-- `providerSql`: `available`, `engineVerified`, `source`, and generated migration SQL `statements` when the provider exposes migration SQL generation. Each statement contains `migration`, `operationIndex`, and `sql`; provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. SQL is local report evidence and is never sent through telemetry.
+- `providerSql`: `available`, `engineVerified`, `source`, and generated migration SQL `statements` when the provider exposes migration SQL generation. Each statement contains `migration`, `operationIndex`, and `sql`; provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. SQL is local report evidence and is never sent through telemetry. `engineVerified` is `true` only when the report contains provider-behavior findings (EFG301, EFG302, EFG303) and every one of them was promoted to `high` confidence from the repository's real database-engine integration evidence. Provider-behavior findings are never reported with `high` confidence while `engineVerified` is `false`; they fall back to `severity: unverified` and `confidence: unknown`.
 - `compatibility`: the configured `strategy`, `minimumCompatibleVersions`, all four model-state booleans, and the states evaluated for blocking verdicts.
 - `baseline`: `requested`, `reference`, and `available`.
 - `summary`: operation and severity counts plus `exitCode`.

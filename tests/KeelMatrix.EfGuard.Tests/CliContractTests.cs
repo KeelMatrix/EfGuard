@@ -171,6 +171,7 @@ public sealed class CliContractTests
         RunGit(repository, ["config", "user.email", "keelmatrix@gmail.com"]);
         RunGit(repository, ["add", "."]);
         RunGit(repository, ["commit", "-m", "Add compatibility fixture"]);
+        RunDotnet(repository, ["restore", "EfFixture.csproj"]);
 
         string currentSource = source.Replace("            entity.Property(order => order.LegacyCode).HasMaxLength(32);\r\n", "", StringComparison.Ordinal)
             .Replace("            entity.Property(order => order.LegacyCode).HasMaxLength(32);\n", "", StringComparison.Ordinal)
@@ -183,6 +184,12 @@ public sealed class CliContractTests
     private static void RunGit(string repository, string[] arguments)
     {
         ProcessResult result = ProcessRunner.RunAsync("git", ["-C", repository, .. arguments], repository, TimeSpan.FromSeconds(30), CancellationToken.None).GetAwaiter().GetResult();
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    private static void RunDotnet(string directory, string[] arguments)
+    {
+        ProcessResult result = ProcessRunner.RunAsync("dotnet", arguments, directory, TimeSpan.FromSeconds(120), CancellationToken.None).GetAwaiter().GetResult();
         Assert.Equal(0, result.ExitCode);
     }
 

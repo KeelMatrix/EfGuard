@@ -367,6 +367,163 @@ public sealed class AnalyzerTests
         Assert.DoesNotContain(widening.Diagnostics, d => d.RuleId == "EFG202");
     }
 
+    [Theory]
+    [InlineData("nvarchar(max)", "nvarchar(32)")]
+    [InlineData("text", "character varying(32)")]
+    [InlineData("text", "varchar(255)")]
+    public void UnboundedTextNarrowingIsReported(string previousType, string currentType)
+    {
+        Report report = Analyzer.Analyze(Current(new NormalizedOperation
+        {
+            Kind = "alter-column",
+            Table = "Orders",
+            Column = "Code",
+            HasOldColumn = true,
+            OldColumnType = previousType,
+            ColumnType = currentType,
+            OldClrType = "System.String",
+            ClrType = "System.String",
+            OldMaxLength = null,
+            MaxLength = 32
+        }), null, new GuardConfig(), null);
+
+        Diagnostic finding = Assert.Single(report.Diagnostics, d => d.RuleId == "EFG202");
+        Assert.Equal(FindingSeverity.Block, finding.Severity);
+        Assert.Equal(FindingConfidence.High, finding.Confidence);
+    }
+
+    [Fact]
+    public void UnboundedTextBoundaryDoesNotReportWideningOrUnknownPreviousColumns()
+    {
+        Report widened = Analyzer.Analyze(Current(new NormalizedOperation
+        {
+            Kind = "alter-column",
+            Table = "Orders",
+            Column = "Code",
+            HasOldColumn = true,
+            OldColumnType = "nvarchar(32)",
+            ColumnType = "nvarchar(max)",
+            OldClrType = "System.String",
+            ClrType = "System.String",
+            OldMaxLength = 32,
+            MaxLength = null
+        }), null, new GuardConfig(), null);
+        Assert.DoesNotContain(widened.Diagnostics, d => d.RuleId == "EFG202");
+
+        Report unknownPreviousColumn = Analyzer.Analyze(Current(new NormalizedOperation
+        {
+            Kind = "alter-column",
+            Table = "Orders",
+            Column = "Code",
+            HasOldColumn = false,
+            ColumnType = "nvarchar(32)",
+            ClrType = "System.String",
+            MaxLength = 32
+        }), null, new GuardConfig(), null);
+        Assert.DoesNotContain(unknownPreviousColumn.Diagnostics, d => d.RuleId == "EFG202");
+
+        Report boundedBefore = Analyzer.Analyze(Current(new NormalizedOperation
+        {
+            Kind = "alter-column",
+            Table = "Orders",
+            Column = "Code",
+            HasOldColumn = true,
+            OldColumnType = "character varying(64)",
+            ColumnType = "character varying(32)",
+            OldClrType = "System.String",
+            ClrType = "System.String",
+            OldMaxLength = null,
+            MaxLength = 32
+        }), null, new GuardConfig(), null);
+        Assert.DoesNotContain(boundedBefore.Diagnostics, d => d.RuleId == "EFG202");
+    }
+
+    [Fact]
+    public void ProviderBehaviorFindingsRequireEngineEvidenceBeforeHighConfidence()
+    {
+        ExtractionResult withoutSql = Current(new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Index", OperationIndex = 0 }, "Npgsql.EntityFrameworkCore.PostgreSQL");
+        Report noEvidenceNoSql = Analyzer.Analyze(withoutSql, null, new GuardConfig(), null, ProviderEngineEvidence.None);
+        Diagnostic unverified = Assert.Single(noEvidenceNoSql.Diagnostics, d => d.RuleId == "EFG302");
+        Assert.Equal(FindingSeverity.Unverified, unverified.Severity);
+        Assert.Equal(FindingConfidence.Unknown, unverified.Confidence);
+        Assert.False(noEvidenceNoSql.ProviderSql.EngineVerified);
+
+        ExtractionResult withoutEngineEvidence = Current(new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Index", OperationIndex = 0 }, "Npgsql.EntityFrameworkCore.PostgreSQL");
+        withoutEngineEvidence.ProviderSql = new ProviderSqlEvidence
+        {
+            Available = true,
+            Statements = [new ProviderSqlStatement { Migration = "20240201_Index", OperationIndex = 0, Sql = "CREATE INDEX \"IX_Orders_Id\" ON \"Orders\" (\"Id\")" }]
+        };
+        Report sqlOnly = Analyzer.Analyze(withoutEngineEvidence, null, new GuardConfig(), null, ProviderEngineEvidence.None);
+        Diagnostic unverifiedWithSql = Assert.Single(sqlOnly.Diagnostics, d => d.RuleId == "EFG302");
+        Assert.Equal(FindingSeverity.Unverified, unverifiedWithSql.Severity);
+        Assert.Equal(FindingConfidence.Unknown, unverifiedWithSql.Confidence);
+        Assert.False(sqlOnly.ProviderSql.EngineVerified);
+
+        ExtractionResult withEngineEvidence = Current(new NormalizedOperation { Kind = "create-index", Table = "Orders", Migration = "20240201_Index", OperationIndex = 0 }, "Npgsql.EntityFrameworkCore.PostgreSQL");
+        withEngineEvidence.ProviderSql = new ProviderSqlEvidence
+        {
+            Available = true,
+            Statements = [new ProviderSqlStatement { Migration = "20240201_Index", OperationIndex = 0, Sql = "CREATE INDEX \"IX_Orders_Id\" ON \"Orders\" (\"Id\")" }]
+        };
+        Report verified = Analyzer.Analyze(withEngineEvidence, null, new GuardConfig(), null, EngineEvidence("EFG302", "Npgsql.EntityFrameworkCore.PostgreSQL", "postgresql"));
+        Diagnostic high = Assert.Single(verified.Diagnostics, d => d.RuleId == "EFG302");
+        Assert.Equal(FindingSeverity.High, high.Severity);
+        Assert.Equal(FindingConfidence.High, high.Confidence);
+        Assert.True(verified.ProviderSql.EngineVerified);
+
+        ExtractionResult foreignKey = Current(new NormalizedOperation { Kind = "add-foreign-key", Table = "OrderLines", PrincipalTable = "Orders" }, "Microsoft.EntityFrameworkCore.SqlServer");
+        Report foreignKeyWithoutEvidence = Analyzer.Analyze(foreignKey, null, new GuardConfig(), null, ProviderEngineEvidence.None);
+        Diagnostic foreignKeyFinding = Assert.Single(foreignKeyWithoutEvidence.Diagnostics, d => d.RuleId == "EFG303");
+        Assert.Equal(FindingSeverity.Unverified, foreignKeyFinding.Severity);
+        Assert.Equal(FindingConfidence.Unknown, foreignKeyFinding.Confidence);
+
+        ExtractionResult foreignKeyVerified = Current(new NormalizedOperation { Kind = "add-foreign-key", Table = "OrderLines", PrincipalTable = "Orders" }, "Microsoft.EntityFrameworkCore.SqlServer");
+        Report foreignKeyWithEvidence = Analyzer.Analyze(foreignKeyVerified, null, new GuardConfig(), null, EngineEvidence("EFG303", "Microsoft.EntityFrameworkCore.SqlServer", "sqlserver"));
+        Diagnostic engineVerifiedForeignKey = Assert.Single(foreignKeyWithEvidence.Diagnostics, d => d.RuleId == "EFG303");
+        Assert.Equal(FindingSeverity.High, engineVerifiedForeignKey.Severity);
+        Assert.Equal(FindingConfidence.High, engineVerifiedForeignKey.Confidence);
+    }
+
+    [Fact]
+    public void ShippedProviderEngineEvidenceCoversProviderBehaviorRules()
+    {
+        ProviderEngineEvidence shipped = ProviderEngineEvidence.Shipped;
+
+        Assert.NotEmpty(shipped.Claims);
+        foreach (string rule in new[] { "EFG301", "EFG302", "EFG303" })
+        {
+            Assert.Contains(shipped.Claims, claim =>
+                claim.Rule.Equals(rule, StringComparison.Ordinal)
+                && !string.IsNullOrWhiteSpace(claim.Provider)
+                && !string.IsNullOrWhiteSpace(claim.Engine)
+                && !string.IsNullOrWhiteSpace(claim.Behavior)
+                && !string.IsNullOrWhiteSpace(claim.VerifiedBy));
+        }
+
+        Assert.True(shipped.IsEngineVerified("EFG302", "Npgsql.EntityFrameworkCore.PostgreSQL"));
+        Assert.True(shipped.IsEngineVerified("EFG301", "Microsoft.EntityFrameworkCore.SqlServer"));
+        Assert.True(shipped.IsEngineVerified("EFG303", "Microsoft.EntityFrameworkCore.SqlServer"));
+        Assert.False(shipped.IsEngineVerified("EFG302", "Microsoft.EntityFrameworkCore.SqlServer"));
+        Assert.False(ProviderEngineEvidence.None.IsEngineVerified("EFG302", "Npgsql.EntityFrameworkCore.PostgreSQL"));
+    }
+
+    private static ProviderEngineEvidence EngineEvidence(string rule, string provider, string engine)
+        => ProviderEngineEvidence.Parse($$"""
+        {
+          "version": 1,
+          "claims": [
+            {
+              "rule": "{{rule}}",
+              "provider": "{{provider}}",
+              "engine": "{{engine}}",
+              "behavior": "provider-behavior",
+              "verifiedBy": "Test"
+            }
+          ]
+        }
+        """);
+
     [Fact]
     public void UniqueConstraintRuleDistinguishesUniqueAndOrdinaryIndexes()
     {

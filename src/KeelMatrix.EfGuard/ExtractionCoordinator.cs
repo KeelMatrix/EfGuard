@@ -7,13 +7,16 @@ internal static class ExtractionCoordinator
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    internal static async Task<ExtractionResult> ExtractAsync(string projectPath, string? startupProjectPath, string? contextName, CancellationToken cancellationToken)
+    internal static Task<ExtractionResult> ExtractAsync(string projectPath, string? startupProjectPath, string? contextName, CancellationToken cancellationToken)
+        => ExtractAsync(projectPath, startupProjectPath, contextName, null, cancellationToken);
+
+    internal static async Task<ExtractionResult> ExtractAsync(string projectPath, string? startupProjectPath, string? contextName, IReadOnlyDictionary<string, string?>? workerEnvironment, CancellationToken cancellationToken)
     {
         string tempRoot = Path.Combine(Path.GetTempPath(), "efguard-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempRoot);
         try
         {
-            return await RunWorkerAsync(projectPath, startupProjectPath ?? projectPath, contextName, tempRoot, cancellationToken).ConfigureAwait(false);
+            return await RunWorkerAsync(projectPath, startupProjectPath ?? projectPath, contextName, tempRoot, workerEnvironment, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -42,12 +45,13 @@ internal static class ExtractionCoordinator
                 throw new InvalidOperationException("The requested baseline Git reference could not be archived.");
 
             ZipFile.ExtractToDirectory(archivePath, tempRoot);
+            CopyRestoredGraph(repositoryRoot, tempRoot);
             string baselineProject = Path.Combine(tempRoot, relativeProject);
             string baselineStartup = Path.Combine(tempRoot, relativeStartup);
             if (!File.Exists(baselineProject) || !File.Exists(baselineStartup))
                 throw new InvalidOperationException("The requested baseline does not contain the selected project.");
 
-            return await RunWorkerAsync(baselineProject, baselineStartup, contextName, tempRoot, cancellationToken).ConfigureAwait(false);
+            return await RunWorkerAsync(baselineProject, baselineStartup, contextName, tempRoot, null, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -93,7 +97,7 @@ internal static class ExtractionCoordinator
         return projects[0];
     }
 
-    private static async Task<ExtractionResult> RunWorkerAsync(string projectPath, string startupProjectPath, string? contextName, string tempRoot, CancellationToken cancellationToken)
+    private static async Task<ExtractionResult> RunWorkerAsync(string projectPath, string startupProjectPath, string? contextName, string tempRoot, IReadOnlyDictionary<string, string?>? environment, CancellationToken cancellationToken)
     {
         string outputDirectory = Path.Combine(tempRoot, "worker-output");
         string requestPath = Path.Combine(tempRoot, "request.json");
@@ -111,8 +115,34 @@ internal static class ExtractionCoordinator
         await File.WriteAllTextAsync(requestPath, JsonSerializer.Serialize(request), cancellationToken).ConfigureAwait(false);
 
         string workerPath = await LocateWorkerAsync(projectPath, cancellationToken).ConfigureAwait(false);
-        ProcessResult result = await ProcessRunner.RunAsync("dotnet", [workerPath, "--request", requestPath], tempRoot, TimeSpan.FromSeconds(120), cancellationToken).ConfigureAwait(false);
+        ProcessResult result = await ProcessRunner.RunAsync("dotnet", [workerPath, "--request", requestPath], tempRoot, TimeSpan.FromSeconds(120), environment, cancellationToken).ConfigureAwait(false);
         return await ReadWorkerResponseAsync(result, responsePath, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Reuses the caller's restored dependency graph for baseline analysis. EfGuard never restores
+    /// packages and never contacts package feeds; a baseline without a restorable graph fails closed.
+    /// </summary>
+    private static void CopyRestoredGraph(string sourceRoot, string destinationRoot)
+    {
+        foreach (string projectFile in Directory.EnumerateFiles(destinationRoot, "*.csproj", SearchOption.AllDirectories))
+        {
+            string projectDirectory = Path.GetDirectoryName(projectFile)!;
+            string relativeDirectory = Path.GetRelativePath(destinationRoot, projectDirectory);
+            string sourceObj = Path.Combine(sourceRoot, relativeDirectory, "obj");
+            if (!File.Exists(Path.Combine(sourceObj, "project.assets.json")))
+                continue;
+
+            string destinationObj = Path.Combine(projectDirectory, "obj");
+            Directory.CreateDirectory(destinationObj);
+            string projectName = Path.GetFileName(projectFile);
+            foreach (string name in new[] { "project.assets.json", "project.nuget.cache", projectName + ".nuget.dgspec.json", projectName + ".nuget.g.props", projectName + ".nuget.g.targets" })
+            {
+                string source = Path.Combine(sourceObj, name);
+                if (File.Exists(source))
+                    File.Copy(source, Path.Combine(destinationObj, name), overwrite: true);
+            }
+        }
     }
 
     internal static async Task<ExtractionResult> ReadWorkerResponseAsync(ProcessResult result, string responsePath, CancellationToken cancellationToken)

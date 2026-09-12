@@ -1,0 +1,47 @@
+﻿{
+  "version": 1,
+  "claims": [
+    {
+      "rule": "EFG301",
+      "provider": "Microsoft.EntityFrameworkCore.SqlServer",
+      "engine": "sqlserver",
+      "behavior": "offline-index-creation-blocks-concurrent-writes",
+      "verifiedBy": "SqlServerProviderEngineTests.OfflineIndexCreationBlocksConcurrentWrites"
+    },
+    {
+      "rule": "EFG301",
+      "provider": "Microsoft.EntityFrameworkCore.SqlServer",
+      "engine": "sqlserver",
+      "behavior": "online-index-creation-is-supported",
+      "verifiedBy": "SqlServerProviderEngineTests.OnlineIndexCreationIsAcceptedByEngine"
+    },
+    {
+      "rule": "EFG302",
+      "provider": "Npgsql.EntityFrameworkCore.PostgreSQL",
+      "engine": "postgresql",
+      "behavior": "concurrent-index-creation-requires-no-transaction",
+      "verifiedBy": "PostgreSqlProviderEngineTests.ConcurrentIndexCreationRunsOutsideTransactionsOnly"
+    },
+    {
+      "rule": "EFG302",
+      "provider": "Npgsql.EntityFrameworkCore.PostgreSQL",
+      "engine": "postgresql",
+      "behavior": "non-concurrent-index-creation-blocks-concurrent-writes",
+      "verifiedBy": "PostgreSqlProviderEngineTests.NonConcurrentIndexCreationBlocksConcurrentWrites"
+    },
+    {
+      "rule": "EFG303",
+      "provider": "Microsoft.EntityFrameworkCore.SqlServer",
+      "engine": "sqlserver",
+      "behavior": "foreign-key-validation-blocks-concurrent-writes",
+      "verifiedBy": "SqlServerProviderEngineTests.ForeignKeyValidationBlocksConcurrentWrites"
+    },
+    {
+      "rule": "EFG303",
+      "provider": "Npgsql.EntityFrameworkCore.PostgreSQL",
+      "engine": "postgresql",
+      "behavior": "foreign-key-validation-blocks-concurrent-writes",
+      "verifiedBy": "PostgreSqlProviderEngineTests.ForeignKeyValidationBlocksConcurrentWrites"
+    }
+  ]
+}

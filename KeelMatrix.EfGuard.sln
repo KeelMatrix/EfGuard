@@ -34,6 +34,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef9Net9Fixture", "fixtures\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProcessProbe", "tests\ProcessProbe\ProcessProbe.csproj", "{D3F3D5D4-C1DD-4254-EFA0-BD44051A04BE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef9NarrowSqlServerFixture", "fixtures\Ef9NarrowSqlServer\Ef9NarrowSqlServerFixture.csproj", "{CDE5F040-C40C-4573-A628-6D42847FAF2C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef9NarrowPostgresFixture", "fixtures\Ef9NarrowPostgres\Ef9NarrowPostgresFixture.csproj", "{B13A572C-6BFF-479C-9F42-ED79C302B7F6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef8MultiContextOrdersFixture", "fixtures\Ef8MultiContextOrders\Ef8MultiContextOrdersFixture.csproj", "{7855F478-7797-4244-9D9A-443FF183D5A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef8MultiContextCustomersFixture", "fixtures\Ef8MultiContextCustomers\Ef8MultiContextCustomersFixture.csproj", "{52A3830B-E944-4390-8C2A-088FBF5D9CF2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ef8MultiContextHost", "fixtures\Ef8MultiContextHost\Ef8MultiContextHost.csproj", "{584EFEDF-5212-4CF1-A52E-E79F357DDCBA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -104,5 +114,28 @@ Global
 		{D3F3D5D4-C1DD-4254-EFA0-BD44051A04BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D3F3D5D4-C1DD-4254-EFA0-BD44051A04BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D3F3D5D4-C1DD-4254-EFA0-BD44051A04BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CDE5F040-C40C-4573-A628-6D42847FAF2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CDE5F040-C40C-4573-A628-6D42847FAF2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CDE5F040-C40C-4573-A628-6D42847FAF2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CDE5F040-C40C-4573-A628-6D42847FAF2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B13A572C-6BFF-479C-9F42-ED79C302B7F6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B13A572C-6BFF-479C-9F42-ED79C302B7F6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B13A572C-6BFF-479C-9F42-ED79C302B7F6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B13A572C-6BFF-479C-9F42-ED79C302B7F6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7855F478-7797-4244-9D9A-443FF183D5A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7855F478-7797-4244-9D9A-443FF183D5A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7855F478-7797-4244-9D9A-443FF183D5A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7855F478-7797-4244-9D9A-443FF183D5A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{52A3830B-E944-4390-8C2A-088FBF5D9CF2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{52A3830B-E944-4390-8C2A-088FBF5D9CF2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{52A3830B-E944-4390-8C2A-088FBF5D9CF2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{52A3830B-E944-4390-8C2A-088FBF5D9CF2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{584EFEDF-5212-4CF1-A52E-E79F357DDCBA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{584EFEDF-5212-4CF1-A52E-E79F357DDCBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{584EFEDF-5212-4CF1-A52E-E79F357DDCBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{584EFEDF-5212-4CF1-A52E-E79F357DDCBA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal

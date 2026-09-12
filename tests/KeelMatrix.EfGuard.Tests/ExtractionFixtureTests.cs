@@ -89,4 +89,48 @@ public sealed class ExtractionFixtureTests
         Assert.False(result.Success);
         Assert.Equal("More than one DbContext was found; specify --context.", result.Error);
     }
+
+    [Theory]
+    [InlineData("Ef9NarrowSqlServer", "Microsoft.EntityFrameworkCore.SqlServer", "nvarchar(max)", "nvarchar(32)")]
+    [InlineData("Ef9NarrowPostgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "text", "character varying(32)")]
+    public async Task UnboundedStringNarrowingRetainsPreviousColumnEvidence(string fixture, string provider, string previousType, string currentType)
+    {
+        string project = FixtureProject(fixture);
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, null, CancellationToken.None);
+
+        Assert.True(result.Success, $"Extraction failed: {result.Error ?? "(no error returned)"}");
+        Assert.Equal(provider, result.Provider);
+        NormalizedOperation operation = Assert.Single(result.Operations, candidate => candidate.Kind == "alter-column");
+        Assert.True(operation.HasOldColumn);
+        Assert.Null(operation.OldMaxLength);
+        Assert.Equal(32, operation.MaxLength);
+        Assert.Equal(previousType, operation.OldColumnType);
+        Assert.Equal(currentType, operation.ColumnType);
+    }
+
+    [Fact]
+    public async Task ExplicitContextSelectionAnalyzesOnlyTheSelectedContextMigrations()
+    {
+        string ordersProject = FixtureProject("Ef8MultiContextOrders");
+        string customersProject = FixtureProject("Ef8MultiContextCustomers");
+        string hostProject = Path.Combine(Path.GetDirectoryName(FixtureProject("Ef8MultiContextHost"))!, "Ef8MultiContextHost.csproj");
+        const string ordersMigration = "20240701000000_AddOrdersCodeIndex";
+        const string customersMigration = "20240702000000_DropCustomersLegacyName";
+
+        ExtractionResult orders = await ExtractionCoordinator.ExtractAsync(ordersProject, hostProject, "OrdersDbContext", CancellationToken.None);
+        Assert.True(orders.Success, $"Extraction failed: {orders.Error ?? "(no error returned)"}");
+        Assert.Contains(orders.Operations, operation => operation.Migration == ordersMigration);
+        Assert.DoesNotContain(orders.Operations, operation => operation.Migration == customersMigration);
+        Assert.DoesNotContain(orders.ProviderSql.Statements, statement => statement.Migration == customersMigration);
+
+        ExtractionResult customers = await ExtractionCoordinator.ExtractAsync(customersProject, hostProject, "CustomersDbContext", CancellationToken.None);
+        Assert.True(customers.Success, $"Extraction failed: {customers.Error ?? "(no error returned)"}");
+        Assert.Contains(customers.Operations, operation => operation.Migration == customersMigration);
+        Assert.DoesNotContain(customers.Operations, operation => operation.Migration == ordersMigration);
+        Assert.DoesNotContain(customers.ProviderSql.Statements, statement => statement.Migration == ordersMigration);
+    }
+
+    private static string FixtureProject(string fixture)
+        => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));
 }

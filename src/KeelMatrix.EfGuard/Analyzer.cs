@@ -4,8 +4,11 @@ namespace KeelMatrix.EfGuard;
 
 internal static class Analyzer
 {
-    internal static Report Analyze(ExtractionResult current, ExtractionResult? baseline, GuardConfig config, string? baselineReference)
+    private static readonly string[] ProviderBehaviorRules = ["EFG301", "EFG302", "EFG303"];
+
+    internal static Report Analyze(ExtractionResult current, ExtractionResult? baseline, GuardConfig config, string? baselineReference, ProviderEngineEvidence? providerEngineEvidence = null)
     {
+        ProviderEngineEvidence engineEvidence = providerEngineEvidence ?? ProviderEngineEvidence.Shipped;
         Report report = new()
         {
             Provider = current.Provider,
@@ -61,7 +64,8 @@ internal static class Analyzer
                 current.Provider!,
                 baseline?.Model,
                 config.Strategy.Equals("rolling", StringComparison.OrdinalIgnoreCase),
-                current.ProviderSql);
+                current.ProviderSql,
+                engineEvidence);
             if (findings.Count == 0)
             {
                 report.Summary.Compatible++;
@@ -79,6 +83,9 @@ internal static class Analyzer
         report.Summary.High = report.Diagnostics.Count(d => !d.Suppressed && d.Severity == FindingSeverity.High);
         report.Summary.Blocking = report.Diagnostics.Count(d => !d.Suppressed && d.Severity == FindingSeverity.Block);
         report.Summary.Unverified = report.Diagnostics.Count(d => !d.Suppressed && d.Severity == FindingSeverity.Unverified);
+        List<Diagnostic> providerBehaviorFindings = report.Diagnostics.Where(d => ProviderBehaviorRules.Contains(d.RuleId, StringComparer.OrdinalIgnoreCase)).ToList();
+        report.ProviderSql.EngineVerified = providerBehaviorFindings.Count > 0
+            && providerBehaviorFindings.All(d => d.Confidence == FindingConfidence.High);
         report.Summary.ExitCode = report.Errors.Count > 0 || baselineReference is not null && baseline is null
             ? 2
             : report.Summary.Blocking > 0 || report.Summary.Unverified > 0 ? 1 : 0;
@@ -197,7 +204,7 @@ internal static class Analyzer
             : operations.Where(operation => operation.Migration?.Equals(latestMigration, StringComparison.OrdinalIgnoreCase) == true).ToList();
     }
 
-    private static List<Diagnostic> AnalyzeOperation(NormalizedOperation op, string provider, ModelSnapshot? baseline, bool enforceOverlap, ProviderSqlEvidence providerSql)
+    private static List<Diagnostic> AnalyzeOperation(NormalizedOperation op, string provider, ModelSnapshot? baseline, bool enforceOverlap, ProviderSqlEvidence providerSql, ProviderEngineEvidence engineEvidence)
     {
         List<Diagnostic> findings = [];
         bool oldColumnExists = baseline is not null && ContainsColumn(baseline, op.Schema, op.Table, op.Column);
@@ -261,12 +268,12 @@ internal static class Analyzer
                 break;
             case "create-index":
                 if (provider.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) && !op.IsConcurrent)
-                    findings.Add(CreateProviderFinding("EFG302", "Write-blocking index creation", provider, op, providerSql,
+                    findings.Add(CreateProviderFinding("EFG302", "Write-blocking index creation", provider, op, providerSql, engineEvidence,
                         $"The PostgreSQL index operation for {op.Table} is not configured for concurrent creation.",
                         "Use the provider-supported concurrent index option when appropriate and use the transaction semantics required by that option.",
                         ["blocking", "provider"]));
                 if (provider.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) && !op.IsOnline)
-                    findings.Add(CreateProviderFinding("EFG301", "Potentially blocking index creation", provider, op, providerSql,
+                    findings.Add(CreateProviderFinding("EFG301", "Potentially blocking index creation", provider, op, providerSql, engineEvidence,
                         $"The SQL Server index operation for {op.Table} is not marked for online creation.",
                         "Evaluate SQL Server/Azure SQL online index support and configure online creation where supported; otherwise schedule the operation for an appropriate maintenance window.",
                         ["blocking", "provider"]));
@@ -285,11 +292,10 @@ internal static class Analyzer
                     "The tool does not connect to the database or inspect existing values."));
                 break;
             case "add-foreign-key":
-                findings.Add(Create("EFG303", "Foreign-key validation and locking risk", FindingSeverity.High, FindingConfidence.High,
-                    ["compatibility", "blocking"], provider, op.Migration, Location(op),
+                findings.Add(CreateProviderBehaviorFinding("EFG303", "Foreign-key validation and locking risk", provider, op, engineEvidence,
                     $"The migration adds a foreign key from {op.Table} to {op.PrincipalTable}; existing orphaned rows or validation locks can fail or delay deployment.",
                     "Validate and repair data before adding the constraint, and use provider-supported online/not-valid validation patterns where available.",
-                    "The tool cannot verify existing rows or production lock duration."));
+                    ["compatibility", "blocking"]));
                 break;
             case "sql-backfill":
                 findings.Add(Create("EFG304", "Unbounded data backfill", FindingSeverity.High, FindingConfidence.High,
@@ -321,7 +327,7 @@ internal static class Analyzer
         return findings;
     }
 
-    private static Diagnostic CreateProviderFinding(string ruleId, string title, string provider, NormalizedOperation operation, ProviderSqlEvidence evidence, string explanation, string remediation, List<string> risks)
+    private static Diagnostic CreateProviderFinding(string ruleId, string title, string provider, NormalizedOperation operation, ProviderSqlEvidence evidence, ProviderEngineEvidence engineEvidence, string explanation, string remediation, List<string> risks)
     {
         List<ProviderSqlStatement> operationEvidence = evidence.Available
             && operation.Migration is not null
@@ -331,12 +337,25 @@ internal static class Analyzer
                 && statement.Migration.Equals(operation.Migration, StringComparison.OrdinalIgnoreCase)
                 && statement.OperationIndex == operation.OperationIndex).ToList()
             : [];
-        bool hasEvidence = operationEvidence.Count == 1 && MatchesProviderSqlShape(operation, operationEvidence[0].Sql);
-        return Create(ruleId, title, hasEvidence ? FindingSeverity.High : FindingSeverity.Unverified, hasEvidence ? FindingConfidence.High : FindingConfidence.Unknown,
+        bool hasSqlEvidence = operationEvidence.Count == 1 && MatchesProviderSqlShape(operation, operationEvidence[0].Sql);
+        bool engineVerified = hasSqlEvidence && engineEvidence.IsEngineVerified(ruleId, provider);
+        return Create(ruleId, title, engineVerified ? FindingSeverity.High : FindingSeverity.Unverified, engineVerified ? FindingConfidence.High : FindingConfidence.Unknown,
             risks, provider, operation.Migration, Location(operation), explanation, remediation,
-            hasEvidence
-                ? "Provider-generated migration SQL is retained as evidence, but runtime lock duration still depends on engine version, capabilities, workload, and deployment conditions."
-                : "Provider-generated SQL for the migration operations under review was not available, so this provider-specific claim is explicitly unverified.");
+            engineVerified
+                ? "Provider-generated migration SQL is retained as evidence and the provider behavior behind this claim is verified against a real engine by the repository's integration gates; runtime lock duration still depends on engine version, capabilities, workload, and deployment conditions."
+                : hasSqlEvidence
+                    ? "Provider-generated migration SQL is retained as evidence, but no real database-engine integration evidence verifies this provider-behavior claim, so it is reported as unverified."
+                    : "Provider-generated SQL for the migration operations under review was not available, so this provider-specific claim is explicitly unverified.");
+    }
+
+    private static Diagnostic CreateProviderBehaviorFinding(string ruleId, string title, string provider, NormalizedOperation operation, ProviderEngineEvidence engineEvidence, string explanation, string remediation, List<string> risks)
+    {
+        bool engineVerified = engineEvidence.IsEngineVerified(ruleId, provider);
+        return Create(ruleId, title, engineVerified ? FindingSeverity.High : FindingSeverity.Unverified, engineVerified ? FindingConfidence.High : FindingConfidence.Unknown,
+            risks, provider, operation.Migration, Location(operation), explanation, remediation,
+            engineVerified
+                ? "The provider behavior behind this claim is verified against a real engine by the repository's integration gates; runtime lock duration still depends on engine version, workload, and deployment conditions."
+                : "No real database-engine integration evidence verifies this provider-behavior claim, so it is reported as unverified.");
     }
 
     private static void AddTransactionSuppressionFinding(List<Diagnostic> findings, NormalizedOperation operation, string provider)
@@ -419,12 +438,34 @@ internal static class Analyzer
     {
         bool typeChanged = op.OldClrType is not null && op.ClrType is not null && !op.OldClrType.Equals(op.ClrType, StringComparison.OrdinalIgnoreCase);
         bool nullabilityNarrowed = op.OldIsNullable == true && !op.IsNullable;
-        bool lengthNarrowed = op.OldMaxLength is not null && op.MaxLength is not null && op.MaxLength < op.OldMaxLength;
+        bool lengthNarrowed = IsLengthNarrowed(op);
         bool precisionNarrowed = op.OldPrecision is not null && op.Precision is not null && op.Precision < op.OldPrecision;
         bool scaleNarrowed = op.OldScale is not null && op.Scale is not null && op.Scale < op.OldScale;
         bool collationChanged = op.OldCollation is not null && op.Collation is not null && !op.OldCollation.Equals(op.Collation, StringComparison.OrdinalIgnoreCase);
         return typeChanged || nullabilityNarrowed || lengthNarrowed || precisionNarrowed || scaleNarrowed || collationChanged;
     }
+
+    /// <summary>
+    /// Detects length narrowing, including the common unbounded-to-bounded text change where the
+    /// previous column has no maximum length (for example <c>nvarchar(max)</c> or <c>text</c>).
+    /// </summary>
+    private static bool IsLengthNarrowed(NormalizedOperation op)
+    {
+        if (op.MaxLength is null)
+            return false;
+        if (op.OldMaxLength is not null)
+            return op.MaxLength < op.OldMaxLength;
+        if (!IsTextColumn(op.OldColumnType, op.OldClrType) || !IsTextColumn(op.ColumnType, op.ClrType))
+            return false;
+        if (!op.HasOldColumn && op.OldColumnType is null)
+            return false;
+        return op.OldColumnType is null || !Regex.IsMatch(op.OldColumnType, @"\(\s*\d+\s*\)");
+    }
+
+    private static bool IsTextColumn(string? columnType, string? clrType)
+        => !string.IsNullOrWhiteSpace(columnType)
+            ? Regex.IsMatch(columnType, "char|text|clob", RegexOptions.IgnoreCase)
+            : clrType is not null && clrType.Equals("System.String", StringComparison.Ordinal);
 
     private static string FormatType(string? type, int? length, byte? precision, byte? scale, string? collation)
         => type is null ? "the previous type" : length is not null ? $"{type}({length})" : precision is not null ? $"{type}({precision},{scale})" : collation is null ? type : $"{type} with collation {collation}";

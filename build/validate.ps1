@@ -32,6 +32,9 @@ try {
     & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Dependencies.ps1")
     if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit contract coverage failed." }
 
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Compare-ProviderEngineEvidence.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "provider engine evidence validation contract coverage failed." }
+
     Invoke-Dotnet @("build", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-restore")
     Invoke-Dotnet @("test", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-build", "--no-restore")
     Invoke-Dotnet @("format", "KeelMatrix.EfGuard.sln", "--verify-no-changes", "--no-restore")

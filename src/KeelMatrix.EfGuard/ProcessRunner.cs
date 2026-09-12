@@ -10,7 +10,10 @@ internal static class ProcessRunner
 {
     internal const int MaxOutputBytes = 128 * 1024;
 
-    internal static async Task<ProcessResult> RunAsync(string fileName, IEnumerable<string> arguments, string? workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+    internal static Task<ProcessResult> RunAsync(string fileName, IEnumerable<string> arguments, string? workingDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+        => RunAsync(fileName, arguments, workingDirectory, timeout, null, cancellationToken);
+
+    internal static async Task<ProcessResult> RunAsync(string fileName, IEnumerable<string> arguments, string? workingDirectory, TimeSpan timeout, IReadOnlyDictionary<string, string?>? environment, CancellationToken cancellationToken)
     {
         ProcessStartInfo startInfo = new()
         {
@@ -23,6 +26,16 @@ internal static class ProcessRunner
         };
         foreach (string argument in arguments)
             startInfo.ArgumentList.Add(argument);
+        if (environment is not null)
+        {
+            foreach ((string key, string? value) in environment)
+            {
+                if (value is null)
+                    _ = startInfo.Environment.Remove(key);
+                else
+                    startInfo.Environment[key] = value;
+            }
+        }
 
         using Process process = new() { StartInfo = startInfo, EnableRaisingEvents = true };
         try

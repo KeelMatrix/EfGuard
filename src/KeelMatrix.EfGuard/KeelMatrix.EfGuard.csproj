@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <PackageReference Include="KeelMatrix.Telemetry" />
+    <EmbeddedResource Include="ProviderEngineEvidence.json" LogicalName="KeelMatrix.EfGuard.ProviderEngineEvidence.json" />
     <None Include="$(MSBuildProjectDirectory)\..\..\README.md" Pack="true" PackagePath="" Link="README.md" />
     <None Include="$(MSBuildProjectDirectory)\..\..\LICENSE" Pack="true" PackagePath="" Link="LICENSE" />
     <None Include="$(MSBuildProjectDirectory)\..\..\icon.png" Pack="true" PackagePath="" Link="icon.png" />
