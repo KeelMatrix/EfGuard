@@ -215,6 +215,22 @@ public sealed class CliContractTests
         Assert.Contains("MissingDependency", error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task BuiltExecutableFailsClosedForPartialMigrationsAssembly()
+    {
+        ProcessResult result = await RunCliAsync(["check", "--project", "fixtures/EfMigrationsPartialAssembly/EfMigrationsPartialAssemblyFixture.csproj", "--format", "json"]);
+
+        Assert.Equal(2, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        string error = document.RootElement.GetProperty("errors")[0].GetString()!;
+        Assert.Contains("BrokenMigrations", error, StringComparison.Ordinal);
+        Assert.Contains("ReflectionTypeLoadException", error, StringComparison.Ordinal);
+        Assert.Contains("MissingDependency", error, StringComparison.Ordinal);
+        Assert.DoesNotContain("EfMigrationsPartialAssembly", error, StringComparison.Ordinal);
+        Assert.DoesNotContain("connection", error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(result.StandardError);
+    }
+
     private static async Task<ProcessResult> RunCliAsync(string[] arguments)
     {
         Environment.SetEnvironmentVariable("KEELMATRIX_NO_TELEMETRY", "1");

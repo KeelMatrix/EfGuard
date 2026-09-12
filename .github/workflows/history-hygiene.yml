@@ -19,3 +19,7 @@ jobs:
       - name: Check all reachable commits
         shell: bash
         run: sh .githooks/check-history
+
+      - name: Verify commit-message gate regression coverage
+        shell: pwsh
+        run: ./build/Test-CommitHistoryGate.ps1

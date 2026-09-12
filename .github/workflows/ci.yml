@@ -379,6 +379,10 @@ jobs:
         shell: pwsh
         run: ./build/Test-Validate-Changelog.ps1
 
+      - name: Validate commit-message gate coverage
+        shell: pwsh
+        run: ./build/Test-CommitHistoryGate.ps1
+
       - name: Validate provider engine evidence contract coverage
         shell: pwsh
         run: ./build/Test-Compare-ProviderEngineEvidence.ps1

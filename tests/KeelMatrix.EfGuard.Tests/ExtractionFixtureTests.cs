@@ -224,6 +224,20 @@ public sealed class ExtractionFixtureTests
             && note.Contains("MissingDependency", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task PartialMigrationsAssemblyFailsClosedWithAssemblySpecificLoaderError()
+    {
+        string project = FixtureProject("EfMigrationsPartialAssembly");
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, null, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Error);
+        Assert.Contains("BrokenMigrations", result.Error, StringComparison.Ordinal);
+        Assert.Contains("ReflectionTypeLoadException", result.Error, StringComparison.Ordinal);
+        Assert.Contains("MissingDependency", result.Error, StringComparison.Ordinal);
+    }
+
     private static string FixtureProject(string fixture)
         => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));
 }
