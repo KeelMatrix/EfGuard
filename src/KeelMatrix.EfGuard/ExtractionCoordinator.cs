@@ -1,6 +1,5 @@
 ﻿using System.IO.Compression;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 namespace KeelMatrix.EfGuard;
 
@@ -111,7 +110,7 @@ internal static class ExtractionCoordinator
         };
         await File.WriteAllTextAsync(requestPath, JsonSerializer.Serialize(request), cancellationToken).ConfigureAwait(false);
 
-        string workerPath = LocateWorker(projectPath);
+        string workerPath = await LocateWorkerAsync(projectPath, cancellationToken).ConfigureAwait(false);
         ProcessResult result = await ProcessRunner.RunAsync("dotnet", [workerPath, "--request", requestPath], tempRoot, TimeSpan.FromSeconds(120), cancellationToken).ConfigureAwait(false);
         return await ReadWorkerResponseAsync(result, responsePath, cancellationToken).ConfigureAwait(false);
     }
@@ -174,9 +173,12 @@ internal static class ExtractionCoordinator
         return await JsonSerializer.DeserializeAsync<ExtractionResult>(stream, JsonOptions, cancellationToken).ConfigureAwait(false);
     }
 
-    private static string LocateWorker(string projectPath)
+    private static async Task<string> LocateWorkerAsync(string projectPath, CancellationToken cancellationToken)
     {
-        string targetFramework = SelectWorkerTargetFramework(projectPath);
+        string? targetFramework = await SelectWorkerTargetFrameworkAsync(projectPath, cancellationToken).ConfigureAwait(false);
+        if (targetFramework is null)
+            throw new InvalidOperationException("The selected EF project did not resolve to a supported target framework (net8.0, net9.0, or net10.0).");
+
         string packaged = Path.Combine(AppContext.BaseDirectory, "KeelMatrix.EfGuard.Worker.dll");
         if (targetFramework != "net8.0")
         {
@@ -206,29 +208,46 @@ internal static class ExtractionCoordinator
         throw new InvalidOperationException("The EfGuard extraction worker is not installed.");
     }
 
-    private static string SelectWorkerTargetFramework(string projectPath)
+    internal static async Task<string?> SelectWorkerTargetFrameworkAsync(string projectPath, CancellationToken cancellationToken)
     {
-        string project = File.ReadAllText(projectPath);
-        Match targetFramework = Regex.Match(project, @"<TargetFramework>\s*(?<tfm>[^<;]+)\s*</TargetFramework>", RegexOptions.IgnoreCase);
-        if (targetFramework.Success)
-            return NormalizeSupportedTargetFramework(targetFramework.Groups["tfm"].Value);
+        string? projectDirectory = Path.GetDirectoryName(Path.GetFullPath(projectPath));
+        if (projectDirectory is null)
+            return null;
 
-        Match targetFrameworks = Regex.Match(project, @"<TargetFrameworks>\s*(?<tfms>[^<]+)\s*</TargetFrameworks>", RegexOptions.IgnoreCase);
-        if (targetFrameworks.Success)
+        ProcessResult result = await ProcessRunner.RunAsync(
+            "dotnet",
+            ["msbuild", projectPath, "-getProperty:TargetFramework", "-getProperty:TargetFrameworks", "-nologo"],
+            projectDirectory,
+            TimeSpan.FromSeconds(30),
+            cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode != 0 || result.TimedOut || result.OutputExceeded)
+            return null;
+
+        try
         {
-            string[] frameworks = targetFrameworks.Groups["tfms"].Value.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (string candidate in new[] { "net10.0", "net9.0", "net8.0" })
-                if (frameworks.Any(framework => framework.Equals(candidate, StringComparison.OrdinalIgnoreCase)))
-                    return candidate;
-        }
+            using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+            if (!document.RootElement.TryGetProperty("Properties", out JsonElement properties))
+                return null;
 
-        return "net8.0";
+            List<string> frameworks = [];
+            AddFrameworks(properties, "TargetFramework", frameworks);
+            AddFrameworks(properties, "TargetFrameworks", frameworks);
+            foreach (string supported in new[] { "net10.0", "net9.0", "net8.0" })
+                if (frameworks.Any(framework => framework.Equals(supported, StringComparison.OrdinalIgnoreCase)))
+                    return supported;
+        }
+        catch (JsonException) { }
+
+        return null;
     }
 
-    private static string NormalizeSupportedTargetFramework(string targetFramework)
-        => targetFramework.Equals("net10.0", StringComparison.OrdinalIgnoreCase) ? "net10.0"
-            : targetFramework.Equals("net9.0", StringComparison.OrdinalIgnoreCase) ? "net9.0"
-            : "net8.0";
+    private static void AddFrameworks(JsonElement properties, string propertyName, List<string> frameworks)
+    {
+        if (!properties.TryGetProperty(propertyName, out JsonElement property) || property.ValueKind != JsonValueKind.String)
+            return;
+
+        frameworks.AddRange(property.GetString()!.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
 
     private static ExtractionResult Failure(string message) => new() { Success = false, Error = message };
 

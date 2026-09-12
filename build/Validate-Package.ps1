@@ -65,6 +65,39 @@ function Assert-ExactArchiveEntries([System.IO.Compression.ZipArchive] $Archive,
     }
 }
 
+function Assert-PackedReadmeLinks([System.IO.Compression.ZipArchive] $Archive, [string[]] $EntryNames) {
+    $readme = Read-EntryText $Archive "README.md"
+    $linkPattern = '\[[^\]]*\]\((?<target><[^>]+>|[^)\s]+)'
+    foreach ($match in [regex]::Matches($readme, $linkPattern)) {
+        $target = $match.Groups["target"].Value.Trim('<', '>')
+        if ([string]::IsNullOrWhiteSpace($target) -or $target.StartsWith("#", [StringComparison]::Ordinal)) { continue }
+        if ($target -match '^(?i)(?:[a-z][a-z0-9+.-]*:|//)') { continue }
+
+        $path = $target.Split('#')[0].Split('?')[0].Replace('\', '/')
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        if ($path.StartsWith("/", [StringComparison]::Ordinal)) {
+            Fail "packed README contains an unresolved relative link '$target'."
+        }
+
+        $segments = [System.Collections.Generic.List[string]]::new()
+        foreach ($segment in $path.Split('/', [StringSplitOptions]::RemoveEmptyEntries)) {
+            if ($segment -eq '.') { continue }
+            if ($segment -eq '..') {
+                if ($segments.Count -eq 0) { Fail "packed README contains an unresolved relative link '$target'." }
+                $segments.RemoveAt($segments.Count - 1)
+                continue
+            }
+            $segments.Add($segment)
+        }
+
+        $normalized = [string]::Join("/", $segments)
+        $resolved = $EntryNames | Where-Object { [StringComparer]::Ordinal.Equals($_, $normalized) -or $_.StartsWith($normalized + '/', [StringComparison]::Ordinal) }
+        if ($null -eq $resolved -or @($resolved).Count -eq 0) {
+            Fail "packed README contains an unresolved relative link '$target'."
+        }
+    }
+}
+
 function Invoke-Dotnet([string[]] $Arguments) {
     & dotnet @Arguments
     if ($LASTEXITCODE -ne 0) { Fail "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
@@ -120,6 +153,7 @@ try {
         "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.dll",
         "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
     ) "$(Split-Path -Leaf $nupkgPath)"
+    Assert-PackedReadmeLinks $nupkg $entryNames
 
     foreach ($entryName in $entryNames | Where-Object { $_ -match '(?i)\.(?:nuspec|md|txt|json|xml|props|targets|cs|csproj)$' }) {
         $content = Read-EntryText $nupkg $entryName
@@ -167,6 +201,7 @@ try {
     Assert-Equal "KeelMatrix.EfGuard" $metadata.id "package ID"
     Assert-Equal $ExpectedVersion $metadata.version "package version"
     Assert-Equal "KeelMatrix" $metadata.authors "authors"
+    Assert-Equal "KeelMatrix" $metadata.copyright "copyright"
     Assert-Equal "Detect EF Core migrations that can break rolling deployments, lose data, or block production traffic, and explain a safer rollout before merge." $metadata.description "description"
     Assert-Equal "ef-core entity-framework database-migrations zero-downtime rolling-deployment ci sql-server postgresql dotnet-tool" $metadata.tags "tags"
     Assert-Equal "MIT" $metadata.license.InnerText "license"

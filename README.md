@@ -81,19 +81,19 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 
 | ID | Diagnostic | Default | Risk |
 | --- | --- | --- | --- |
-| [EFG101](docs/rules/EFG101.md) | Rolling-deployment incompatibility | BLOCK | compatibility, data loss |
-| [EFG102](docs/rules/EFG102.md) | Required column may reject existing rows | BLOCK | compatibility, data loss |
-| [EFG201](docs/rules/EFG201.md) | Destructive column/table change | HIGH | data loss, rollback |
-| [EFG202](docs/rules/EFG202.md) | Unsafe column alteration | BLOCK | compatibility, data loss |
-| [EFG204](docs/rules/EFG204.md) | Unique index/constraint validation risk | HIGH | compatibility, blocking |
-| [EFG301](docs/rules/EFG301.md) | Potentially blocking SQL Server index creation | HIGH | blocking, provider |
-| [EFG302](docs/rules/EFG302.md) | Write-blocking PostgreSQL index creation | HIGH | blocking, provider |
-| [EFG303](docs/rules/EFG303.md) | Foreign-key validation and locking risk | HIGH | compatibility, blocking |
-| [EFG304](docs/rules/EFG304.md) | Unbounded data backfill | HIGH | blocking, data loss |
-| [EFG305](docs/rules/EFG305.md) | Transaction semantics require review | HIGH | blocking, provider |
-| [EFG399](docs/rules/EFG399.md) | Unverified operation or compatibility history | UNVERIFIED | compatibility, provider |
-| [EFG900](docs/rules/EFG900.md) | Unsupported database provider | UNVERIFIED | provider |
-| [EFG998](docs/rules/EFG998.md) | Expired suppression | BLOCK | configuration |
+| [EFG101](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG101.md) | Rolling-deployment incompatibility | BLOCK | compatibility, data loss |
+| [EFG102](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG102.md) | Required column may reject existing rows | BLOCK | compatibility, data loss |
+| [EFG201](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG201.md) | Destructive column/table change | HIGH | data loss, rollback |
+| [EFG202](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG202.md) | Unsafe column alteration | BLOCK | compatibility, data loss |
+| [EFG204](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG204.md) | Unique index/constraint validation risk | HIGH | compatibility, blocking |
+| [EFG301](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG301.md) | Potentially blocking SQL Server index creation | HIGH | blocking, provider |
+| [EFG302](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG302.md) | Write-blocking PostgreSQL index creation | HIGH | blocking, provider |
+| [EFG303](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG303.md) | Foreign-key validation and locking risk | HIGH | compatibility, blocking |
+| [EFG304](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG304.md) | Unbounded data backfill | HIGH | blocking, data loss |
+| [EFG305](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG305.md) | Transaction semantics require review | HIGH | blocking, provider |
+| [EFG399](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG399.md) | Unverified operation or compatibility history | UNVERIFIED | compatibility, provider |
+| [EFG900](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG900.md) | Unsupported database provider | UNVERIFIED | provider |
+| [EFG998](https://github.com/KeelMatrix/EfGuard/blob/main/docs/rules/EFG998.md) | Expired suppression | BLOCK | configuration |
 
 Unknown operations, raw SQL, and custom operations are never silently treated as safe. Transaction suppression is an independent risk dimension: arbitrary SQL retains EFG399 and may also report EFG305, while a classified unbounded backfill may report EFG304 and EFG305 together. SQL is classified locally and is not included in telemetry. Provider lock behavior depends on engine version, capabilities, and workload; EfGuard cannot guarantee zero downtime.
 
@@ -130,12 +130,12 @@ The compatibility fixture matrix exercises each supported EF/provider family:
 
 ## Contracts and documentation
 
-- [JSON report and compatibility policy](docs/JSON-SCHEMA.md)
-- [Security policy](SECURITY.md)
-- [Privacy and shared telemetry contract](PRIVACY.md)
-- [Rule documentation](docs/rules/)
-- [Contributing](CONTRIBUTING.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [JSON report and compatibility policy](https://github.com/KeelMatrix/EfGuard/blob/main/docs/JSON-SCHEMA.md)
+- [Security policy](https://github.com/KeelMatrix/EfGuard/blob/main/SECURITY.md)
+- [Privacy and shared telemetry contract](https://github.com/KeelMatrix/EfGuard/blob/main/PRIVACY.md)
+- [Rule documentation](https://github.com/KeelMatrix/EfGuard/tree/main/docs/rules)
+- [Contributing](https://github.com/KeelMatrix/EfGuard/blob/main/CONTRIBUTING.md)
+- [Code of Conduct](https://github.com/KeelMatrix/EfGuard/blob/main/CODE_OF_CONDUCT.md)
 
 ## CI
 
@@ -158,4 +158,4 @@ For repository validation with telemetry explicitly disabled, run `pwsh ./build/
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/KeelMatrix/EfGuard/blob/main/LICENSE).

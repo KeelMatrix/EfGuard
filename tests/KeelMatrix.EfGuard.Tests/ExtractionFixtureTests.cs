@@ -3,6 +3,26 @@
 [Collection("Extraction")]
 public sealed class ExtractionFixtureTests
 {
+    [Fact]
+    public async Task WorkerSelectionUsesEvaluatedTargetFrameworkFromDirectoryBuildProps()
+    {
+        string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "Ef9Net9", "Ef9Net9Fixture.csproj"));
+
+        string? targetFramework = await ExtractionCoordinator.SelectWorkerTargetFrameworkAsync(project, CancellationToken.None);
+
+        Assert.Equal("net9.0", targetFramework);
+    }
+
+    [Fact]
+    public async Task WorkerSelectionChoosesSupportedFrameworkFromEvaluatedMultiTargetProject()
+    {
+        string project = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "KeelMatrix.EfGuard.Worker", "KeelMatrix.EfGuard.Worker.csproj"));
+
+        string? targetFramework = await ExtractionCoordinator.SelectWorkerTargetFrameworkAsync(project, CancellationToken.None);
+
+        Assert.Equal("net10.0", targetFramework);
+    }
+
     [Theory]
     [InlineData("Ef8", "Microsoft.EntityFrameworkCore.SqlServer", "drop-column")]
     [InlineData("Ef8Postgres", "Npgsql.EntityFrameworkCore.PostgreSQL", "create-index")]

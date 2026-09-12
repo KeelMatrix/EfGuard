@@ -8,6 +8,7 @@
     <Description>Detect EF Core migrations that can break rolling deployments, lose data, or block production traffic, and explain a safer rollout before merge.</Description>
     <PackageTags>ef-core;entity-framework;database-migrations;zero-downtime;rolling-deployment;ci;sql-server;postgresql;dotnet-tool</PackageTags>
     <Authors>KeelMatrix</Authors>
+    <Copyright>KeelMatrix</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/KeelMatrix/EfGuard#readme</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>

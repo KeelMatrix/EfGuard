@@ -39,6 +39,25 @@ public sealed class CliContractTests
     }
 
     [Fact]
+    public async Task BuiltExecutableConsoleFindingRendersAffectedStateAndRiskDimensions()
+    {
+        string repository = CreateCompatibilityFixtureRepository();
+        try
+        {
+            ProcessResult result = await RunCliAsync(["check", "--project", Path.Combine(repository, "EfFixture.csproj"), "--baseline", "HEAD", "--format", "console"]);
+
+            Assert.Equal(1, result.ExitCode);
+            Assert.Contains("Affected state: Previous application + target schema", result.StandardOutput);
+            Assert.Contains("Risk dimension(s): compatibility", result.StandardOutput);
+            Assert.Empty(result.StandardError);
+        }
+        finally
+        {
+            DeleteDirectory(repository);
+        }
+    }
+
+    [Fact]
     public async Task BuiltExecutableReturnsJsonConfigurationFailureForMissingOptionValue()
     {
         ProcessResult result = await RunCliAsync(["check", "--format", "json", "--context"]);
@@ -136,5 +155,44 @@ public sealed class CliContractTests
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
         string cli = Path.Combine(root, "src", "KeelMatrix.EfGuard", "bin", "Release", "net8.0", "KeelMatrix.EfGuard.dll");
         return await ProcessRunner.RunAsync("dotnet", [cli, .. arguments], root, TimeSpan.FromSeconds(60), CancellationToken.None);
+    }
+
+    private static string CreateCompatibilityFixtureRepository()
+    {
+        string repository = Path.Combine(Path.GetTempPath(), "efguard-console-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(repository);
+        string fixtures = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", "Ef8"));
+        File.Copy(Path.Combine(fixtures, "Ef8Fixture.csproj"), Path.Combine(repository, "EfFixture.csproj"));
+        string source = File.ReadAllText(Path.Combine(fixtures, "Fixture.cs"));
+        File.WriteAllText(Path.Combine(repository, "Fixture.cs"), source);
+
+        RunGit(repository, ["init", "--initial-branch", "main"]);
+        RunGit(repository, ["config", "user.name", "KeelMatrix"]);
+        RunGit(repository, ["config", "user.email", "keelmatrix@gmail.com"]);
+        RunGit(repository, ["add", "."]);
+        RunGit(repository, ["commit", "-m", "Add compatibility fixture"]);
+
+        string currentSource = source.Replace("            entity.Property(order => order.LegacyCode).HasMaxLength(32);\r\n", "", StringComparison.Ordinal)
+            .Replace("            entity.Property(order => order.LegacyCode).HasMaxLength(32);\n", "", StringComparison.Ordinal)
+            .Replace("    public string? LegacyCode { get; set; }\r\n", "", StringComparison.Ordinal)
+            .Replace("    public string? LegacyCode { get; set; }\n", "", StringComparison.Ordinal);
+        File.WriteAllText(Path.Combine(repository, "Fixture.cs"), currentSource);
+        return repository;
+    }
+
+    private static void RunGit(string repository, string[] arguments)
+    {
+        ProcessResult result = ProcessRunner.RunAsync("git", ["-C", repository, .. arguments], repository, TimeSpan.FromSeconds(30), CancellationToken.None).GetAwaiter().GetResult();
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    private static void DeleteDirectory(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+        catch { }
     }
 }

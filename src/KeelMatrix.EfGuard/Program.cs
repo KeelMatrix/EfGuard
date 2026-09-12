@@ -121,6 +121,10 @@ internal static class Program
             _ = output.AppendLine($"{diagnostic.RuleId} — {diagnostic.Title}{suffix}");
             _ = output.AppendLine($"Severity: {FormatSeverity(diagnostic.Severity)}");
             _ = output.AppendLine($"Confidence: {diagnostic.Confidence}");
+            if (diagnostic.AffectedState is not null)
+                _ = output.AppendLine($"Affected state: {diagnostic.AffectedState}");
+            if (diagnostic.RiskDimensions.Count > 0)
+                _ = output.AppendLine($"Risk dimension(s): {string.Join(", ", diagnostic.RiskDimensions)}");
             if (diagnostic.Provider is not null)
                 _ = output.AppendLine($"Provider: {diagnostic.Provider}");
             if (diagnostic.Location is not null)
