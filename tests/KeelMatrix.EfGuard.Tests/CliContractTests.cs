@@ -56,7 +56,8 @@ public sealed class CliContractTests
         Assert.Equal(1, document.RootElement.GetProperty("summary").GetProperty("operationsInspected").GetInt32());
         Assert.Contains(document.RootElement.GetProperty("diagnostics").EnumerateArray(), diagnostic => diagnostic.GetProperty("ruleId").GetString() == "EFG201");
         Assert.True(document.RootElement.GetProperty("providerSql").GetProperty("available").GetBoolean());
-        Assert.Empty(result.StandardError);
+        Assert.Contains("EfGuard note: Skipped unreadable peripheral assembly", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("ReflectionTypeLoadException", result.StandardError, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -187,6 +188,31 @@ public sealed class CliContractTests
         Assert.Equal(0, document.RootElement.GetProperty("summary").GetProperty("operationsInspected").GetInt32());
         Assert.DoesNotContain("BetaDropLegacy", result.StandardOutput);
         Assert.Empty(result.StandardError);
+    }
+
+    [Fact]
+    public async Task BuiltExecutableSurfacesPeripheralSkipNotesOnStandardError()
+    {
+        ProcessResult result = await RunCliAsync(["check", "--project", "fixtures/EfPeripheralPartialAssembly/EfPeripheralPartialAssemblyFixture.csproj", "--format", "json"]);
+
+        Assert.Equal(1, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Equal(1, document.RootElement.GetProperty("schemaVersion").GetInt32());
+        Assert.Contains("EfGuard note: Skipped unreadable peripheral assembly 'BrokenPeripheral", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("ReflectionTypeLoadException", result.StandardError, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuiltExecutableFailsClosedForPartialOwnAssembly()
+    {
+        ProcessResult result = await RunCliAsync(["check", "--project", "fixtures/EfPartialOwnAssembly/EfPartialOwnAssemblyFixture.csproj", "--format", "json"]);
+
+        Assert.Equal(2, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        string error = document.RootElement.GetProperty("errors")[0].GetString()!;
+        Assert.Contains("EfPartialOwnAssembly", error, StringComparison.Ordinal);
+        Assert.Contains("ReflectionTypeLoadException", error, StringComparison.Ordinal);
+        Assert.Contains("MissingDependency", error, StringComparison.Ordinal);
     }
 
     private static async Task<ProcessResult> RunCliAsync(string[] arguments)

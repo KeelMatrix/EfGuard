@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <UseSharedCompilation>false</UseSharedCompilation>
+    <FixtureOutputPath Condition="'$(OutputPath)' != ''">$([System.IO.Path]::GetFullPath('$(OutputPath)', '$(MSBuildProjectDirectory)'))\</FixtureOutputPath>
+    <FixtureOutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\</FixtureOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.29" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.29" />
+  </ItemGroup>
+  <Target Name="BuildBrokenPeripheral" BeforeTargets="ResolveAssemblyReferences">
+    <MSBuild Projects="..\MissingDependency\MissingDependency.csproj"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);OutputPath=$(FixtureOutputPath)peripheral-dependency\;BaseIntermediateOutputPath=$(FixtureOutputPath)..\peripheral-dependency-obj\;IntermediateOutputPath=$(FixtureOutputPath)..\peripheral-dependency-obj\;MSBuildProjectExtensionsPath=$(FixtureOutputPath)..\peripheral-dependency-obj\;GenerateDocumentationFile=false;UseSharedCompilation=false;RestoreIgnoreFailedSources=true" />
+    <MSBuild Projects="..\BrokenPeripheral\BrokenPeripheral.csproj"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);OutputPath=$(FixtureOutputPath);BaseIntermediateOutputPath=$(FixtureOutputPath)..\peripheral-obj\;IntermediateOutputPath=$(FixtureOutputPath)..\peripheral-obj\;MSBuildProjectExtensionsPath=$(FixtureOutputPath)..\peripheral-obj\;MissingDependencyPath=$(FixtureOutputPath)peripheral-dependency\MissingDependency.dll;GenerateDocumentationFile=false;UseSharedCompilation=false;RestoreIgnoreFailedSources=true" />
+  </Target>
+  <Target Name="RemovePeripheralDependencyAfterBuild" AfterTargets="Build">
+    <Delete Files="$(FixtureOutputPath)MissingDependency.dll" />
+  </Target>
+</Project>

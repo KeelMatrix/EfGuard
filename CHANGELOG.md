@@ -27,6 +27,10 @@ The first release remains unpublished.
 - Console reports render the reason, affected state, risk dimensions, provider evidence, remediation guidance, and uncertainty; versioned JSON reports retain the same stable diagnostic contract and exit codes `0` (no configured blocking finding), `1` (configured blocking finding), and `2` (analysis could not complete trustworthily).
 - Versioned `efguard.json` configuration for deployment strategy, rule severity overrides, suppressions, required suppression reasons, and optional suppression expiry.
 
+### Fixed
+
+- Partial type loads in the selected context or EF-attributed migrations assembly now fail extraction closed with an assembly-specific loader diagnostic; unrelated unreadable assemblies remain tolerated with bounded CLI notes.
+
 ### Privacy
 
 - Analysis runs locally without database credentials or schema changes. Best-effort telemetry is limited to the shared activation/heartbeat contract, is disabled for KeelMatrix development and CI with `KEELMATRIX_NO_TELEMETRY=1`, and does not transmit source, SQL, schema details, paths, provider names, or findings.

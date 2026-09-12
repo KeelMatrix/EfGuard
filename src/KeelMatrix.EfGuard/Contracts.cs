@@ -14,6 +14,7 @@ internal sealed class ExtractionResult
 {
     public bool Success { get; set; }
     public string? Error { get; set; }
+    public List<string> Notes { get; set; } = [];
     public string? Provider { get; set; }
     public bool ProviderSupported { get; set; }
     public bool ProviderSqlGenerated { get; set; }
