@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.Ef8PostgresFixture;
@@ -15,6 +16,7 @@ public sealed class Order
     public int Id { get; set; }
 }
 
+[DbContext(typeof(OrdersDbContext))]
 [Migration("20240102000000_AddIndex")]
 public sealed class AddIndex : Migration
 {

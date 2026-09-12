@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.Ef10Fixture;
@@ -14,6 +15,7 @@ public sealed class Order
     public int Id { get; set; }
 }
 
+[DbContext(typeof(OrdersDbContext))]
 [Migration("20240303000000_AddRequiredColumn")]
 public sealed class AddRequiredColumn : Migration
 {

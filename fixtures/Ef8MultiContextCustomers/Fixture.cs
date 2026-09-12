@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.Ef8MultiContextCustomers;
@@ -13,6 +14,7 @@ public sealed class Customer
     public int Id { get; set; }
 }
 
+[DbContext(typeof(CustomersDbContext))]
 [Migration("20240702000000_DropCustomersLegacyName")]
 public sealed class DropCustomersLegacyName : Migration
 {

@@ -10,7 +10,7 @@ The first release remains unpublished.
 
 ### Fixed
 
-- `--context` now scopes migration discovery to the selected `DbContext` using EF Core migrations metadata, so migrations that belong to another context are no longer analyzed for the selected context.
+- `--context` now scopes migration discovery to the migrations EF Core attributes to the selected `DbContext`: extraction reads EF Core's own migrations metadata and never falls back to every `Migration` subclass in the migrations assembly, so migrations that belong to another context are no longer analyzed for the selected context. A context without attributed migrations reports zero operations, and migration classes that carry no matching `[DbContext]` attribute fail closed with an actionable diagnostic instead of silently producing a clean scan.
 - Extraction builds the selected project with `--no-restore` against the dependency graph the caller already restored, never performs an implicit network restore, and fails with an actionable diagnostic when that graph is missing. Baseline analysis reuses the same restored graph from an isolated temporary checkout.
 - `EFG202` now detects unbounded-to-bounded text narrowing, including SQL Server `nvarchar(max)` to `nvarchar(32)` and PostgreSQL `text` to `character varying(32)`.
 - Provider-behavior findings (EFG301, EFG302, EFG303) are reported with `HIGH`/`high` confidence only when real SQL Server and PostgreSQL engine integration evidence covers the claim. Without that evidence they are reported as `UNVERIFIED`, and `providerSql.engineVerified` stays `false`.
