@@ -120,9 +120,11 @@ public sealed class SqlServerProviderEngineTests
 
             await ExecuteAsync(connection, "BEGIN TRAN");
             await ExecuteAsync(connection, createIndex);
-            SqlException blocked = await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(writer, "SET LOCK_TIMEOUT 2000;\nINSERT INTO [Orders] ([Id]) VALUES (1)"));
-            Assert.Equal(1222, blocked.Number);
+            Task<int> blockedWrite = ExecuteAsync(writer, "INSERT INTO [Orders] ([Id]) VALUES (1)");
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            Assert.False(blockedWrite.IsCompleted, "Offline index creation did not block a concurrent write.");
             await ExecuteAsync(connection, "ROLLBACK");
+            Assert.Equal(1, await blockedWrite);
 
             ProviderEngine.Record(Engine, "EFG301", Provider, "offline-index-creation-blocks-concurrent-writes", nameof(SqlServerProviderEngineTests) + "." + nameof(OfflineIndexCreationBlocksConcurrentWrites));
         }
@@ -172,9 +174,11 @@ public sealed class SqlServerProviderEngineTests
 
             await ExecuteAsync(connection, "BEGIN TRAN");
             await ExecuteAsync(connection, "ALTER TABLE [OrderLines] WITH CHECK ADD CONSTRAINT [FK_OrderLines_Orders] FOREIGN KEY ([OrderId]) REFERENCES [Orders] ([Id])");
-            SqlException blocked = await Assert.ThrowsAsync<SqlException>(() => ExecuteAsync(writer, "SET LOCK_TIMEOUT 2000;\nINSERT INTO [OrderLines] ([Id], [OrderId]) VALUES (1, 1)"));
-            Assert.Equal(1222, blocked.Number);
+            Task<int> blockedWrite = ExecuteAsync(writer, "INSERT INTO [OrderLines] ([Id], [OrderId]) VALUES (1, 1)");
+            await Task.Delay(TimeSpan.FromSeconds(5));
+            Assert.False(blockedWrite.IsCompleted, "Foreign-key validation did not block a concurrent write.");
             await ExecuteAsync(connection, "ROLLBACK");
+            Assert.Equal(1, await blockedWrite);
 
             ProviderEngine.Record(Engine, "EFG303", Provider, "foreign-key-validation-blocks-concurrent-writes", nameof(SqlServerProviderEngineTests) + "." + nameof(ForeignKeyValidationBlocksConcurrentWrites));
         }
@@ -184,10 +188,10 @@ public sealed class SqlServerProviderEngineTests
         }
     }
 
-    private static async Task ExecuteAsync(SqlConnection connection, string sql)
+    private static async Task<int> ExecuteAsync(SqlConnection connection, string sql)
     {
         await using SqlCommand command = new(sql, connection);
-        await command.ExecuteNonQueryAsync();
+        return await command.ExecuteNonQueryAsync();
     }
 }
 
