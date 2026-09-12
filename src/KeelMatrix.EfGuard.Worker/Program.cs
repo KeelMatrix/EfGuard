@@ -1000,6 +1000,7 @@ internal static class Reflection
         catch (Exception exception)
         {
             RecordUnreadable(assembly, exception);
+            RecordNote(assembly, requestedMember, exception);
             return [];
         }
     }
@@ -1106,10 +1107,16 @@ internal static class Reflection
     private static void RecordUnreadable(Assembly assembly, Exception exception)
         => unreadableAssemblies[Key(assembly)] = Describe(exception);
 
-    private static void RecordNote(Assembly assembly, string? requestedMember, ReflectionTypeLoadException exception)
-        => _ = notes.Add("read only the loadable types of '" + DisplayName(assembly) + "'"
-            + (requestedMember is null ? "" : " while resolving '" + requestedMember + "'") + " because "
-            + (exception.LoaderExceptions.Where(error => error is not null).Select(Describe).FirstOrDefault() ?? Describe(exception)));
+    private static void RecordNote(Assembly assembly, string? requestedMember, Exception exception)
+    {
+        ReflectionTypeLoadException? partial = exception as ReflectionTypeLoadException;
+        string reason = partial is null
+            ? Describe(exception)
+            : partial.LoaderExceptions.Where(error => error is not null).Select(Describe).FirstOrDefault() ?? Describe(exception);
+        string outcome = partial is null ? "skipped '" : "read only the loadable types of '";
+        _ = notes.Add(outcome + DisplayName(assembly) + "'"
+            + (requestedMember is null ? "" : " while resolving '" + requestedMember + "'") + " because " + reason);
+    }
 
     private static string Describe(Exception? exception)
     {
