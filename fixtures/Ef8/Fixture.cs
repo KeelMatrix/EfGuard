@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.Ef8Fixture;
@@ -26,6 +27,7 @@ public sealed class Order
     public string? LegacyCode { get; set; }
 }
 
+[DbContext(typeof(OrdersDbContext))]
 [Migration("20240101000000_RemoveLegacyCode")]
 public sealed class RemoveLegacyCode : Migration
 {

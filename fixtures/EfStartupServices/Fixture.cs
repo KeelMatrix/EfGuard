@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.EfStartupServicesFixture;
@@ -14,6 +15,7 @@ public sealed class Order
     public string? Code { get; set; }
 }
 
+[DbContext(typeof(StartupServicesDbContext))]
 [Migration("20240511000000_AddStartupServicesIndex")]
 public sealed class AddStartupServicesIndex : Migration
 {

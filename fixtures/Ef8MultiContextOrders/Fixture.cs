@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.Ef8MultiContextOrders;
@@ -14,6 +15,7 @@ public sealed class Order
     public string? Code { get; set; }
 }
 
+[DbContext(typeof(OrdersDbContext))]
 [Migration("20240701000000_AddOrdersCodeIndex")]
 public sealed class AddOrdersCodeIndex : Migration
 {

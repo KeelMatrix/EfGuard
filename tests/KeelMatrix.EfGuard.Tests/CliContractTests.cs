@@ -149,6 +149,25 @@ public sealed class CliContractTests
         Assert.Empty(result.StandardError);
     }
 
+    [Fact]
+    public async Task BuiltExecutableReportsNoSharedAssemblyMigrationForAContextWithoutMigrations()
+    {
+        ProcessResult result = await RunCliAsync([
+            "check",
+            "--project", "fixtures/Ef8SharedAssemblyContexts/Ef8SharedAssemblyContextsFixture.csproj",
+            "--context", "AlphaDbContext",
+            "--format", "json"]);
+
+        Assert.Equal(1, result.ExitCode);
+        using JsonDocument document = JsonDocument.Parse(result.StandardOutput);
+        Assert.Empty(document.RootElement.GetProperty("errors").EnumerateArray());
+        Assert.Equal("EFG399", Assert.Single(document.RootElement.GetProperty("diagnostics").EnumerateArray()).GetProperty("ruleId").GetString());
+        Assert.Empty(document.RootElement.GetProperty("providerSql").GetProperty("statements").EnumerateArray());
+        Assert.Equal(0, document.RootElement.GetProperty("summary").GetProperty("operationsInspected").GetInt32());
+        Assert.DoesNotContain("BetaDropLegacy", result.StandardOutput);
+        Assert.Empty(result.StandardError);
+    }
+
     private static async Task<ProcessResult> RunCliAsync(string[] arguments)
     {
         Environment.SetEnvironmentVariable("KEELMATRIX_NO_TELEMETRY", "1");

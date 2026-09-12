@@ -12,6 +12,7 @@ internal static class Program
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly string DbContextName = "Microsoft.EntityFrameworkCore.DbContext";
     private static readonly string MigrationName = "Microsoft.EntityFrameworkCore.Migrations.Migration";
+    private static readonly string MigrationDbContextAttributeName = "Microsoft.EntityFrameworkCore.Infrastructure.DbContextAttribute";
 
     internal static async Task<int> Main(string[] args)
     {
@@ -254,41 +255,36 @@ internal static class Program
     }
 
     /// <summary>
-    /// Resolves the migrations that belong to the selected context using EF's own migrations metadata
-    /// instead of every loaded <c>Migration</c> subclass, so a multi-context project cannot analyze
-    /// another context's migrations.
+    /// Resolves the migrations that EF Core attributes to the selected context. EF Core treats a migration
+    /// as part of a context only when the migration carries a matching <c>[DbContext]</c> attribute, so
+    /// EfGuard reports exactly that per-context set and never falls back to every <c>Migration</c> subclass
+    /// loaded from the migrations assembly. When EF attributes no migrations to the selected context while
+    /// that assembly still defines migration classes no context claims, extraction fails closed instead of
+    /// reporting a trustworthy empty scan.
     /// </summary>
     private static List<(string MigrationId, Type MigrationType)> ResolveContextMigrations(object context, IEnumerable<Assembly> assemblies, bool providerSupported)
     {
         List<(string MigrationId, Type MigrationType)> migrations = [];
+        Assembly migrationsAssemblyInstance;
         try
         {
             Type? contract = assemblies.Select(assembly => assembly.GetType("Microsoft.EntityFrameworkCore.Migrations.IMigrationsAssembly")).FirstOrDefault(type => type is not null);
             object? services = GetInfrastructureServiceProvider(context);
             object? migrationsAssembly = contract is null || services is not IServiceProvider serviceProvider ? null : serviceProvider.GetService(contract);
-            if (migrationsAssembly is null)
+            object? entries = migrationsAssembly is null ? null : contract?.GetProperty("Migrations")?.GetValue(migrationsAssembly);
+            if (entries is not System.Collections.IEnumerable enumerable)
                 throw new InvalidOperationException();
 
-            if (contract?.GetProperty("Migrations")?.GetValue(migrationsAssembly) is System.Collections.IEnumerable entries)
+            migrationsAssemblyInstance = Reflection.Value(migrationsAssembly!, "Assembly") as Assembly ?? context.GetType().Assembly;
+            foreach (object entry in enumerable)
             {
-                foreach (object entry in entries)
-                {
-                    string? migrationId = Reflection.String(entry, "Key");
-                    object? value = Reflection.Value(entry, "Value");
-                    if (value is TypeInfo typeInfo)
-                        value = typeInfo.AsType();
-                    if (value is not Type migrationType || migrationType.IsAbstract || !IsMigration(migrationType))
-                        continue;
-                    migrations.Add((migrationId ?? MigrationId(migrationType) ?? migrationType.Name, migrationType));
-                }
-            }
-
-            if (migrations.Count == 0)
-            {
-                Assembly migrationsAssemblyInstance = Reflection.Value(migrationsAssembly, "Assembly") as Assembly ?? context.GetType().Assembly;
-                migrations.AddRange(SafeGetTypes(migrationsAssemblyInstance)
-                    .Where(type => !type.IsAbstract && IsMigration(type))
-                    .Select(type => (MigrationId(type) ?? type.Name, type)));
+                string? migrationId = Reflection.String(entry, "Key");
+                object? value = Reflection.Value(entry, "Value");
+                if (value is TypeInfo typeInfo)
+                    value = typeInfo.AsType();
+                if (value is not Type migrationType || migrationType.IsAbstract || !IsMigration(migrationType))
+                    continue;
+                migrations.Add((migrationId ?? MigrationId(migrationType) ?? migrationType.Name, migrationType));
             }
         }
         catch when (!providerSupported)
@@ -302,10 +298,66 @@ internal static class Program
             throw new InvalidOperationException("The migrations for the selected DbContext could not be resolved during extraction.");
         }
 
+        if (migrations.Count == 0 && providerSupported)
+            EnsureNoUnattributedMigrationClasses(context.GetType(), migrationsAssemblyInstance);
+
         return migrations
             .OrderBy(migration => migration.MigrationId, StringComparer.Ordinal)
             .ThenBy(migration => migration.MigrationType.FullName, StringComparer.Ordinal)
             .ToList();
+    }
+
+    /// <summary>
+    /// Fails closed when EF attributed no migrations to the selected context while the migrations assembly
+    /// still defines migration classes that no context attribute claims. EF Core applies and lists a
+    /// migration only when <c>[DbContext]</c> attributes it to the scanned context, so those classes cannot
+    /// be attributed here and reporting a clean scan for them would be silently safe.
+    /// </summary>
+    private static void EnsureNoUnattributedMigrationClasses(Type contextType, Assembly migrationsAssembly)
+    {
+        List<string> unattributed = [];
+        foreach (Type type in SafeGetTypes(migrationsAssembly))
+        {
+            if (type.IsAbstract || type.ContainsGenericParameters || !IsMigration(type) || MigrationAttribution(type, out _))
+                continue;
+
+            unattributed.Add(type.FullName ?? type.Name);
+        }
+
+        if (unattributed.Count == 0)
+            return;
+
+        unattributed.Sort(StringComparer.Ordinal);
+        throw new InvalidOperationException(
+            "EF Core attributed no migrations to '" + contextType.FullName + "' in migrations assembly '" + migrationsAssembly.GetName().Name
+            + "', but that assembly defines " + unattributed.Count + " migration class(es) that no [DbContext] attribute claims (for example '"
+            + unattributed[0] + "'). EF Core applies and lists a migration only when it carries [DbContext(typeof(" + contextType.Name
+            + "))], so EfGuard cannot attribute those classes to the selected context. Add the [DbContext] attribute that EF Core writes into migration designer files, or run the scan for the context that owns those migrations.");
+    }
+
+    private static bool MigrationAttribution(Type type, out Type? contextType)
+    {
+        Type? current = type;
+        while (current is not null && current != typeof(object))
+        {
+            object? attribute = null;
+            try
+            {
+                attribute = current.GetCustomAttributes(false).FirstOrDefault(candidate => candidate.GetType().FullName == MigrationDbContextAttributeName);
+            }
+            catch { }
+
+            if (attribute is not null)
+            {
+                contextType = attribute.GetType().GetProperty("ContextType")?.GetValue(attribute) as Type;
+                return true;
+            }
+
+            current = current.BaseType;
+        }
+
+        contextType = null;
+        return false;
     }
 
     private static NormalizedOperation Normalize(object operation, string migrationId, int operationIndex)

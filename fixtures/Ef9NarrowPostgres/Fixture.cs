@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace EfGuard.Ef9NarrowPostgresFixture;
@@ -19,6 +20,7 @@ public sealed class Order
     public string? Code { get; set; }
 }
 
+[DbContext(typeof(OrdersDbContext))]
 [Migration("20240802000000_NarrowOrdersCode")]
 public sealed class NarrowOrdersCode : Migration
 {

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
@@ -37,6 +38,7 @@ public sealed class AuditEntry
     public int Id { get; set; }
 }
 
+[DbContext(typeof(FactoryDbContext))]
 [Migration("20240505000000_AddFactoryIndex")]
 public sealed class AddFactoryIndex : Migration
 {
@@ -48,6 +50,7 @@ public sealed class AddFactoryIndex : Migration
     protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropIndex("IX_Orders_Code", "Orders");
 }
 
+[DbContext(typeof(FactoryDbContext))]
 [Migration("20240506000000_ChangeFactoryCollation")]
 public sealed class ChangeFactoryCollation : Migration
 {
@@ -55,6 +58,7 @@ public sealed class ChangeFactoryCollation : Migration
     protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.AlterColumn<string>("Code", "Orders", type: "nvarchar(max)", nullable: true, collation: "Latin1_General_100_CI_AS", oldClrType: typeof(string), oldType: "nvarchar(128)", oldCollation: "Latin1_General_100_BIN2");
 }
 
+[DbContext(typeof(FactoryDbContext))]
 [Migration("20240507000000_AddFactoryConstraint")]
 public sealed class AddFactoryConstraint : Migration
 {
@@ -62,6 +66,7 @@ public sealed class AddFactoryConstraint : Migration
     protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.DropUniqueConstraint("AK_Orders_Code", "Orders");
 }
 
+[DbContext(typeof(FactoryDbContext))]
 [Migration("20240508000000_BackfillFactoryCode")]
 public sealed class BackfillFactoryCode : Migration
 {
@@ -69,6 +74,7 @@ public sealed class BackfillFactoryCode : Migration
     protected override void Down(MigrationBuilder migrationBuilder) { }
 }
 
+[DbContext(typeof(FactoryDbContext))]
 [Migration("20240509000000_CteFactoryCode")]
 public sealed class CteFactoryCode : Migration
 {
@@ -78,6 +84,7 @@ public sealed class CteFactoryCode : Migration
 
 public sealed class MarkerOperation : MigrationOperation { }
 
+[DbContext(typeof(FactoryDbContext))]
 [Migration("20240510000000_CustomFactoryOperation")]
 public sealed class CustomFactoryOperation : Migration
 {

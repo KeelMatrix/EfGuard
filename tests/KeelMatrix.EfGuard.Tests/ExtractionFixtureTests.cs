@@ -131,6 +131,48 @@ public sealed class ExtractionFixtureTests
         Assert.DoesNotContain(customers.ProviderSql.Statements, statement => statement.Migration == ordersMigration);
     }
 
+    [Fact]
+    public async Task SharedAssemblyContextsAnalyzeOnlyMigrationsAttributedToTheSelectedContext()
+    {
+        string project = FixtureProject("Ef8SharedAssemblyContexts");
+        const string betaMigration = "20250102000000_BetaDropLegacy";
+        const string gammaMigration = "20250103000000_GammaAddInvoiceReferenceIndex";
+
+        ExtractionResult beta = await ExtractionCoordinator.ExtractAsync(project, project, "BetaDbContext", CancellationToken.None);
+        Assert.True(beta.Success, $"Extraction failed: {beta.Error ?? "(no error returned)"}");
+        Assert.Contains(beta.Operations, operation => operation.Migration == betaMigration && operation.Kind == "drop-column");
+        Assert.Contains(beta.ProviderSql.Statements, statement => statement.Migration == betaMigration);
+        Assert.DoesNotContain(beta.Operations, operation => operation.Migration == gammaMigration);
+        Assert.DoesNotContain(beta.ProviderSql.Statements, statement => statement.Migration == gammaMigration);
+
+        ExtractionResult gamma = await ExtractionCoordinator.ExtractAsync(project, project, "GammaDbContext", CancellationToken.None);
+        Assert.True(gamma.Success, $"Extraction failed: {gamma.Error ?? "(no error returned)"}");
+        Assert.Contains(gamma.Operations, operation => operation.Migration == gammaMigration && operation.Kind == "create-index");
+        Assert.DoesNotContain(gamma.Operations, operation => operation.Migration == betaMigration);
+        Assert.DoesNotContain(gamma.ProviderSql.Statements, statement => statement.Migration == betaMigration);
+
+        ExtractionResult alpha = await ExtractionCoordinator.ExtractAsync(project, project, "AlphaDbContext", CancellationToken.None);
+        Assert.True(alpha.Success, $"Extraction failed: {alpha.Error ?? "(no error returned)"}");
+        Assert.Empty(alpha.Operations);
+        Assert.Empty(alpha.ProviderSql.Statements);
+        Assert.False(alpha.ProviderSql.Available);
+    }
+
+    [Fact]
+    public async Task UnattributedMigrationClassesFailClosedInsteadOfFallingBackToTheMigrationsAssembly()
+    {
+        string project = FixtureProject("Ef8UnattributedMigrations");
+
+        ExtractionResult result = await ExtractionCoordinator.ExtractAsync(project, project, "UnattributedDbContext", CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.Error);
+        Assert.Contains("UnattributedDropLegacy", result.Error);
+        Assert.Contains("[DbContext]", result.Error);
+        Assert.Empty(result.Operations);
+        Assert.False(result.ProviderSql.Available);
+    }
+
     private static string FixtureProject(string fixture)
         => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "fixtures", fixture, fixture + "Fixture.csproj"));
 }
