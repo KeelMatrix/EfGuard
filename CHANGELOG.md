@@ -14,7 +14,7 @@ The initial `0.1.0` release is not yet published.
 - `efguard check` for automatic discovery and explicit `--project`, `--startup-project`, and `--context` selection, plus `efguard check --baseline <git-ref>` for baseline-aware compatibility analysis.
 - Out-of-process EF model and migration extraction for EF Core 8, 9, and 10 projects using SQL Server/Azure SQL and Npgsql/PostgreSQL provider graphs.
 - Provider-neutral risk analysis for destructive changes, rolling-deployment incompatibilities, narrowing and required-column changes, indexes and constraints, backfills, transaction behavior, and unverified custom SQL or operations.
-- Console reports render the reason, affected state, risk dimensions, provider evidence, remediation guidance, and uncertainty; versioned JSON reports retain the same stable diagnostic contract and exit codes `0` (no configured blocking finding), `1` (configured blocking finding), and `2` (analysis could not complete trustworthily).
+- Console reports render the reason, affected state, risk dimensions, provider evidence, remediation guidance, and uncertainty; versioned JSON reports retain the same stable diagnostic contract and exit codes `0` (no configured blocking or unverified diagnostic), `1` (a blocking or unverified diagnostic), and `2` (analysis could not complete trustworthily because of configuration, extraction, build, provider, baseline, or internal error).
 - Versioned `efguard.json` configuration for deployment strategy, rule severity overrides, suppressions, required suppression reasons, and optional suppression expiry.
 
 ### Fixed

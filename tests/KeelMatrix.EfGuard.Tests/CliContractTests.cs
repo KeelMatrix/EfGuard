@@ -27,6 +27,9 @@ public sealed class CliContractTests
         string repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
         string readme = File.ReadAllText(Path.Combine(repositoryRoot, "README.md")).ReplaceLineEndings();
         Assert.Contains(ExitCodeContract.ReadmeSection, readme, StringComparison.Ordinal);
+
+        string changelog = File.ReadAllText(Path.Combine(repositoryRoot, "CHANGELOG.md")).ReplaceLineEndings();
+        Assert.Contains(ExitCodeContract.ChangelogSection, changelog, StringComparison.Ordinal);
     }
 
     [Fact]
