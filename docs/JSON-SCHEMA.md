@@ -1,5 +1,9 @@
 ﻿# JSON report schema v1
 
+This document defines the versioned JSON report emitted by `efguard check --format json` and the compatibility obligations for the v1 report and `efguard.json` configuration contracts. It is normative for the fields, versioning, rule IDs, CLI option names, and exit-code meanings described here; it does not replace the rule pages for diagnostic-specific behavior.
+
+## Report fields
+
 `efguard check --format json` emits one object with these top-level fields:
 
 - `schemaVersion`: integer `1`.

@@ -10,7 +10,7 @@
 
 ## Commands
 
-```text
+```powershell
 dotnet restore KeelMatrix.EfGuard.sln
 dotnet build KeelMatrix.EfGuard.sln -c Release --no-restore
 dotnet test KeelMatrix.EfGuard.sln -c Release --no-build

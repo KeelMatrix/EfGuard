@@ -7,18 +7,23 @@ EfGuard is a local .NET tool that analyzes EF Core migrations without connecting
 ## Install
 
 ```bash
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard
 efguard --help
 ```
 
-Update or remove it with:
+### Update
 
 ```bash
 dotnet tool update --global KeelMatrix.EfGuard
+```
+
+### Uninstall
+
+```bash
 dotnet tool uninstall --global KeelMatrix.EfGuard
 ```
 
-## First scan
+## Quick Start
 
 From a straightforward single-project, single-context repository:
 
@@ -62,6 +67,18 @@ Extraction builds the selected project with `--no-restore` against that restored
 Use `--format json` for automation. JSON has `schemaVersion: 1`, `provider`, `providerSql`, `compatibility`, `baseline`, `summary`, `diagnostics`, and `errors`. Each diagnostic contains `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, optional provider/migration/location, `affectedState`, `explanation`, `remediation`, and `uncertainty`.
 
 `providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. Each statement carries its migration and operation ordinal, and provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. `engineVerified` is true only when the repository's real database-engine integration gates have verified the provider behavior behind every provider finding in the report. EfGuard ships that evidence as a versioned provider engine evidence manifest, and it only promotes a provider-locking finding to `HIGH`/`high` confidence when the manifest covers the finding's rule and provider. Missing or unverified engine evidence leaves the finding `UNVERIFIED` instead of asserting a high-confidence provider claim.
+
+## Risk dimensions
+
+Findings identify the affected risk dimensions separately:
+
+- `compatibility`: an application generation and schema generation may not coexist.
+- `data-loss`: values may be removed or rejected by the change.
+- `blocking`: the operation may hold locks or wait on concurrent work.
+- `rollback`: the change reduces recovery or rollback options.
+- `provider`: the result depends on provider-specific behavior.
+
+An `UNVERIFIED` severity or `unknown` confidence indicates that the available static evidence is insufficient; it is not a clean result. EfGuard does not prove runtime lock duration or guarantee zero downtime.
 
 ## Configuration and suppressions
 
@@ -149,7 +166,7 @@ The compatibility fixture matrix exercises each supported EF/provider family:
 - **Configuration is malformed:** `efguard.json` must use version `1`, documented property names, known rule IDs, non-empty suppression reasons, and `yyyy-MM-dd` expiry dates. Unknown properties and rule IDs are rejected with an actionable error and exit code `2`.
 - **The exit code is unexpected:** `0` means a trustworthy clean result, `1` means a trustworthy blocking or unverified result, and `2` means analysis could not complete trustworthily. In CI, treat all non-zero codes as failures unless the job intentionally evaluates the JSON report.
 
-## Contracts and documentation
+## Documentation
 
 - [JSON report and compatibility policy](https://github.com/KeelMatrix/EfGuard/blob/main/docs/JSON-SCHEMA.md)
 - [Security policy](https://github.com/KeelMatrix/EfGuard/blob/main/SECURITY.md)
@@ -163,7 +180,7 @@ The compatibility fixture matrix exercises each supported EF/provider family:
 Install from the configured package source, then invoke the CLI directly:
 
 ```bash
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0 --add-source https://api.nuget.org/v3/index.json
+dotnet tool install --global KeelMatrix.EfGuard --add-source https://api.nuget.org/v3/index.json
 efguard check --baseline origin/main --format json > efguard-report.json
 status=$?
 test $status -eq 0
@@ -171,7 +188,7 @@ test $status -eq 0
 
 On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. A gating job should fail for either non-zero exit code.
 
-## Telemetry and privacy
+## Privacy
 
 After a trustworthy scan, EfGuard uses `KeelMatrix.Telemetry` for one anonymous activation and at most one weekly heartbeat. Telemetry does not receive source, generated SQL, schema names, paths, project names, provider/EF versions, findings, or credentials. It is best effort and cannot change analysis. Disable it for local development and company CI with `KEELMATRIX_NO_TELEMETRY=1`.
 
