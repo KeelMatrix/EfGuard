@@ -27,6 +27,12 @@ try {
     & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-CommitHistoryGate.ps1")
     if ($LASTEXITCODE -ne 0) { throw "commit history gate regression coverage failed." }
 
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-WorkflowCredentials.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "workflow credential validation failed." }
+
+    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-WorkflowCredentials.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "workflow credential validation contract coverage failed." }
+
     Invoke-Dotnet @("restore", "KeelMatrix.EfGuard.sln", "--configfile", "NuGet.config")
 
     & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Dependencies.ps1") -SolutionPath "KeelMatrix.EfGuard.sln"

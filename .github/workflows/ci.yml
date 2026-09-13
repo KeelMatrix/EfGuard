@@ -175,12 +175,12 @@ jobs:
         env:
           ACCEPT_EULA: "Y"
           MSSQL_PID: "Developer"
-          MSSQL_SA_PASSWORD: "[REDACTED]"
+          MSSQL_SA_PASSWORD: "EfGuard_${{ github.run_id }}!"
         ports:
           - 1433:1433
     env:
       EFGUARD_PROVIDER_ENGINE: sqlserver
-      EFGUARD_SQLSERVER_CONNECTION: "Server=localhost,1433;Initial Catalog=master;User Id=sa;Password=[REDACTED];TrustServerCertificate=True;Encrypt=False"
+      EFGUARD_SQLSERVER_CONNECTION: "Server=localhost,1433;Initial Catalog=master;User Id=sa;Password=EfGuard_${{ github.run_id }}!;TrustServerCertificate=True;Encrypt=False"
       EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ github.workspace }}/artifacts/provider-engine-sqlserver.json
     steps:
       - name: Check out source
@@ -265,7 +265,7 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_PASSWORD: "[REDACTED]"
+          POSTGRES_PASSWORD: "EfGuard_${{ github.run_id }}!"
         ports:
           - 5432:5432
         options: >-
@@ -275,7 +275,7 @@ jobs:
           --health-retries 10
     env:
       EFGUARD_PROVIDER_ENGINE: postgresql
-      EFGUARD_POSTGRES_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=[REDACTED]"
+      EFGUARD_POSTGRES_CONNECTION: "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=EfGuard_${{ github.run_id }}!"
       EFGUARD_PROVIDER_ENGINE_EVIDENCE: ${{ github.workspace }}/artifacts/provider-engine-postgresql.json
     steps:
       - name: Check out source
@@ -382,6 +382,12 @@ jobs:
       - name: Validate commit-message gate coverage
         shell: pwsh
         run: ./build/Test-CommitHistoryGate.ps1
+
+      - name: Validate workflow credential contract
+        shell: pwsh
+        run: |
+          ./build/Validate-WorkflowCredentials.ps1
+          ./build/Test-Validate-WorkflowCredentials.ps1
 
       - name: Validate provider engine evidence contract coverage
         shell: pwsh
