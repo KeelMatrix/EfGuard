@@ -16,6 +16,20 @@ public sealed class CliContractTests
     }
 
     [Fact]
+    public async Task BuiltExecutableHelpMatchesTheExitCodeContractAndReadme()
+    {
+        ProcessResult result = await RunCliAsync(["--help"]);
+
+        Assert.Equal(ExitCodeContract.Clean, result.ExitCode);
+        string help = result.StandardOutput.ReplaceLineEndings();
+        Assert.Contains(ExitCodeContract.HelpText, help, StringComparison.Ordinal);
+
+        string repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        string readme = File.ReadAllText(Path.Combine(repositoryRoot, "README.md")).ReplaceLineEndings();
+        Assert.Contains(ExitCodeContract.ReadmeSection, readme, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuiltExecutableReturnsCleanJsonForACompletedScan()
     {
         ProcessResult result = await RunCliAsync(["check", "--project", "fixtures/Ef8Clean/Ef8CleanFixture.csproj", "--baseline", "HEAD", "--format", "json"]);

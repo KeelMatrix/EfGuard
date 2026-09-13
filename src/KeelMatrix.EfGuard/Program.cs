@@ -210,7 +210,7 @@ internal sealed class CliOptions
     private static string Required(string option, string? value)
         => string.IsNullOrWhiteSpace(value) || value.StartsWith("--", StringComparison.Ordinal) ? throw new InvalidOperationException($"{option} requires a value.") : value;
 
-    internal const string HelpText = """
+    internal static string HelpText => $"""
 EfGuard checks EF Core migrations for rolling-deployment compatibility and provider risks.
 
 Usage:
@@ -218,9 +218,7 @@ Usage:
                 [--context <DbContext>] [--format console|json]
 
 Exit codes:
-  0  trustworthy analysis completed with no blocking finding
-  1  trustworthy analysis completed with a blocking or unverified finding
-  2  analysis could not complete trustworthily
+{ExitCodeContract.HelpText}
 
 Design-time startup resolution:
   --startup-project first uses the startup application's scoped services or IDbContextFactory,

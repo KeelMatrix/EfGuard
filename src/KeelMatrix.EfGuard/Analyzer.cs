@@ -20,7 +20,7 @@ internal static class Analyzer
         if (!current.Success)
         {
             report.Errors.Add(current.Error ?? "EF extraction did not complete.");
-            report.Summary.ExitCode = 2;
+            report.Summary.ExitCode = ExitCodeContract.Untrustworthy;
             return report;
         }
 
@@ -33,7 +33,7 @@ internal static class Analyzer
                 "The EF provider was identified, but EfGuard has no provider-specific rule set for it.",
                 "Use Microsoft SQL Server/Azure SQL or Npgsql PostgreSQL for v1 analysis.",
                 "Provider-specific locking and compatibility behavior is unknown."));
-            report.Summary.ExitCode = 2;
+            report.Summary.ExitCode = ExitCodeContract.Untrustworthy;
             return report;
         }
 
@@ -87,8 +87,8 @@ internal static class Analyzer
         report.ProviderSql.EngineVerified = providerBehaviorFindings.Count > 0
             && providerBehaviorFindings.All(d => d.Confidence == FindingConfidence.High);
         report.Summary.ExitCode = report.Errors.Count > 0 || baselineReference is not null && baseline is null
-            ? 2
-            : report.Summary.Blocking > 0 || report.Summary.Unverified > 0 ? 1 : 0;
+            ? ExitCodeContract.Untrustworthy
+            : report.Summary.Blocking > 0 || report.Summary.Unverified > 0 ? ExitCodeContract.Findings : ExitCodeContract.Clean;
         return report;
     }
 
