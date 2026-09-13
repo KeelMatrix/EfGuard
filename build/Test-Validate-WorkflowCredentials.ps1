@@ -74,6 +74,28 @@ try {
     $secret = "Synthetic-Literal-" + [Guid]::NewGuid().ToString("N") + "!"
     $cases = @(
         @{
+            Name = "plain-yaml"
+            LegacyPasses = $false
+            Contents = @"
+name: plain-yaml
+jobs:
+  test:
+    env:
+      MSSQL_SA_PASSWORD: $secret
+"@
+        },
+        @{
+            Name = "single-quoted-yaml"
+            LegacyPasses = $false
+            Contents = @"
+name: single-quoted-yaml
+jobs:
+  test:
+    env:
+      MSSQL_SA_PASSWORD: '$secret'
+"@
+        },
+        @{
             Name = "quoted-key"
             LegacyPasses = $true
             Contents = @"
