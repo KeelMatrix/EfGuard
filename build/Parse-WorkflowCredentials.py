@@ -8,11 +8,20 @@ from those files' path-like tokens.  The closure follows at most
 ``MAX_REACHABLE_FILES`` files.  A resolvable reference beyond either cap fails
 closed instead of being silently skipped.
 
-Files not reachable from workflow command text, dynamically constructed paths,
-and base64 or otherwise encoded credential values are explicitly out of scope.
-Literal credential-shaped values in the covered files are rejected, including
-assignments, command arguments, connection strings, and YAML/JSON/XML/CSV/INI
-style fields.  Runtime expressions and generated values remain allowed.
+Files not reachable from workflow command text, shell-assembled option names,
+dynamically constructed paths, and base64 or otherwise encoded credential
+values are explicitly out of scope.  Literal credential-shaped values in the
+covered files are rejected, including assignments, command arguments,
+connection strings, and YAML/JSON/XML/CSV/INI style fields.  Runtime
+expressions and generated values remain allowed.
+
+Command-argument option names are matched case-insensitively in separated,
+colon, equals, and attached-value forms.  The covered password aliases are
+``password``, ``passwd``, ``pwd``, ``pass``, ``passphrase``, and ``pin``;
+``pass``, ``passphrase``, and ``pin`` are intentionally covered only in
+command-argument position and are not generic data-key names.  The generic
+data-key vocabulary remains ``password``, ``passwd``, ``pwd``, ``api-key``,
+``secret``, ``token``, and ``private-key``.
 
 Attached short-option values are fail-closed: an attached value after the
 short password switch is treated as credential-bearing unless the option is
@@ -74,9 +83,13 @@ KEY_EQUALS_VALUE = re.compile(
     rf"\s*=\s*(?P<value>{VALUE})"
 )
 SHORT_OPTION_PREFIX = "-" + "p"
+# Keep the conventional aliases in command-argument matching only.  The
+# negative lookahead prevents the shorter ``pass`` alias from backtracking
+# into the existing ``password``, ``passwd``, or ``passphrase`` spellings.
+SENSITIVE_COMMAND_OPTION_TEXT = rf"(?:{SENSITIVE_NAME_TEXT}|passphrase|pass(?!word|wd|phrase)|pin)"
 COMMAND_ARGUMENT = re.compile(
     rf"(?is)(?<![\w-])(?:"
-    rf"--{SENSITIVE_NAME_TEXT}|"
+    rf"--{SENSITIVE_COMMAND_OPTION_TEXT}|"
     rf"-{SENSITIVE_NAME_TEXT}|"
     rf"{SHORT_OPTION_PREFIX}"
     rf")(?:\s*[:=]\s*|\s+)(?P<value>{VALUE})"
@@ -109,7 +122,7 @@ ATTACHED_SHORT_COMMAND_ARGUMENT = re.compile(
     rf"(?P<value>(?=[^;\r\n\s:=]){VALUE})"
 )
 ATTACHED_SENSITIVE_COMMAND_ARGUMENT = re.compile(
-    rf"(?is)(?<![\w-])(?:--{SENSITIVE_NAME_TEXT}|-{SENSITIVE_NAME_TEXT})"
+    rf"(?is)(?<![\w-])(?:--{SENSITIVE_COMMAND_OPTION_TEXT}|-{SENSITIVE_NAME_TEXT})"
     rf"(?P<value>(?=[^;\r\n\s:=]){VALUE})"
 )
 XML_ELEMENT_VALUE = re.compile(

@@ -67,9 +67,34 @@ try {
         }
     }
 
+    $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+    $preFixCommit = "29985684a647e7487212972f5c2cd8b2390cf5e1"
+    $preFixParserSpec = "${preFixCommit}:build/Parse-WorkflowCredentials.py"
+    $preFixParserPath = Join-Path $temporaryRoot "pre-fix-parser.py"
+    $preFixParserSource = & git -C $repositoryRoot show $preFixParserSpec 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        $fetchOutput = & git -C $repositoryRoot fetch --no-tags --depth=1 origin $preFixCommit 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw "could not fetch the pre-fix parser commit '$preFixCommit': $($fetchOutput.Trim())"
+        }
+        $preFixParserSource = & git -C $repositoryRoot show $preFixParserSpec 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw "could not read the pre-fix parser at '$preFixCommit': $($preFixParserSource.Trim())"
+        }
+    }
+    $preFixParserSource | Set-Content -LiteralPath $preFixParserPath -Encoding utf8
+
+    function Invoke-PreFixValidator([string] $Root) {
+        $output = & python $preFixParserPath $Root 2>&1 | Out-String
+        [pscustomobject]@{
+            ExitCode = $LASTEXITCODE
+            Output = $output
+        }
+    }
+
 function Write-Workflow([string] $Name, [string] $Contents) {
 	Get-ChildItem -LiteralPath $temporaryRoot -Force |
-		Where-Object Name -notin @(".git", "legacy-validator.ps1") |
+		Where-Object Name -notin @(".git", "legacy-validator.ps1", "pre-fix-parser.py") |
 		Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 	New-Item -ItemType Directory -Path $workflowDirectory, $scriptDirectory -Force | Out-Null
 	$Contents | Set-Content -LiteralPath (Join-Path $workflowDirectory "$Name.yml") -Encoding utf8
@@ -445,6 +470,156 @@ jobs:
 "@
         },
         @{
+            Name = "pass-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: pass-command-argument-colon
+jobs:
+  test:
+    steps:
+      - run: tool.exe --pass:"$secret"
+"@
+        },
+        @{
+            Name = "pass-command-argument-equals"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: pass-command-argument-equals
+jobs:
+  test:
+    steps:
+      - uses: example/tool@v1
+        with:
+          args: '--pass="$secret"'
+"@
+        },
+        @{
+            Name = "pass-command-argument-split"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: pass-command-argument-split
+jobs:
+  test:
+    steps:
+      - run: |
+          tool.exe --pass
+            "$secret"
+"@
+        },
+        @{
+            Name = "uppercase-pass-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: uppercase-pass-command-argument-colon
+jobs:
+  test:
+    steps:
+      - run: tool.exe --PASS:"$secret"
+"@
+        },
+        @{
+            Name = "passphrase-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: passphrase-command-argument-colon
+jobs:
+  test:
+    steps:
+      - uses: example/tool@v1
+        with:
+          args: '--passphrase:"$secret"'
+"@
+        },
+        @{
+            Name = "pass-command-argument-attached"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: pass-command-argument-attached
+jobs:
+  test:
+    steps:
+      - run: tool.exe --__OPTION__<literal>
+"@.Replace("__OPTION__", "pass")
+        },
+        @{
+            Name = "passphrase-command-argument-attached"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: passphrase-command-argument-attached
+jobs:
+  test:
+    steps:
+      - run: tool.exe --__OPTION__<literal>
+"@.Replace("__OPTION__", "passphrase")
+        },
+        @{
+            Name = "pwd-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 1
+            Contents = @"
+name: pwd-command-argument-colon
+jobs:
+  test:
+    steps:
+      - run: tool.exe --pwd:"$secret"
+"@
+        },
+        @{
+            Name = "passwd-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 1
+            Contents = @"
+name: passwd-command-argument-colon
+jobs:
+  test:
+    steps:
+      - run: tool.exe --passwd:"$secret"
+"@
+        },
+        @{
+            Name = "pin-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: pin-command-argument-colon
+jobs:
+  test:
+    steps:
+      - run: tool.exe --pin:"$secret"
+"@
+        },
+        @{
+            Name = "quoted-pass-command-argument"
+            LegacyPasses = $true
+            PreFixExitCode = 0
+            Contents = @"
+name: quoted-pass-command-argument
+jobs:
+  test:
+    steps:
+      - run: tool.exe "--__OPTION__:<literal>"
+"@.Replace("__OPTION__", "pass")
+        },
+        @{
+            Name = "single-pass-command-argument-colon"
+            LegacyPasses = $true
+            PreFixExitCode = 1
+            Contents = @"
+name: single-pass-command-argument-colon
+jobs:
+  test:
+    steps:
+      - run: tool.exe -pass:"$secret"
+"@
+        },
+        @{
             Name = "unallowlisted-attached-short-option"
             LegacyPasses = $true
             Contents = @"
@@ -540,6 +715,12 @@ jobs:
         if (-not $case.LegacyPasses -and $legacyResult.ExitCode -eq 0) {
             throw "Pre-fix validator unexpectedly accepted existing case '$($case.Name)'."
         }
+        if ($case.ContainsKey("PreFixExitCode")) {
+            $preFixResult = Invoke-PreFixValidator $temporaryRoot
+            if ($preFixResult.ExitCode -ne $case.PreFixExitCode) {
+                throw "Parser at $preFixCommit returned exit $($preFixResult.ExitCode) for '$($case.Name)'; expected $($case.PreFixExitCode). Output: $($preFixResult.Output)"
+            }
+        }
     }
 
     $passingCases = @(
@@ -551,8 +732,21 @@ jobs:
   test:
     steps:
       - run: >-
-          tool.exe -path:src -project:app -properties:props -platform:x64
-          -publish:feed -preview:latest -parallel:4 -port:5432 -provider:sql
+          tool.exe -path:src -pathtype:File -project:app -properties:props
+          -platform:x64 -publish:feed -preview:latest -parallel:4 -port:5432
+          -provider:sql -packagedirectory:pkg -passthru:latest -parent:root
+'@
+        },
+        @{
+            Name = "password-aliases-as-data-keys"
+            Contents = @'
+name: password-aliases-as-data-keys
+jobs:
+  test:
+    env:
+      pass: true
+      passphrase: false
+      pin: true
 '@
         },
         @{
@@ -565,6 +759,7 @@ jobs:
       - run: >-
           tool.exe -p"$env:EFGUARD_PASSWORD"
           --password:"${{ secrets.RUNTIME_PASSWORD }}"
+          --passphrase="${{ secrets.RUNTIME_PASSWORD }}"
 '@
         }
     )
@@ -673,7 +868,7 @@ jobs:
         throw "The structural validator rejected the repository workflows or its own pattern strings. Output: $($repositoryResult.Output)"
     }
 
-    Write-Output "Workflow credential validation contract passed: structural bypasses fail, pre-fix bypasses are proven, and runtime expressions pass."
+    Write-Output "Workflow credential validation contract passed: structural bypasses fail, pre-fix parser behavior is proven at $preFixCommit, the 13-option allowlist and runtime expressions pass."
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) {
