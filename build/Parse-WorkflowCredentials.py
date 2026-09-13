@@ -13,6 +13,17 @@ and base64 or otherwise encoded credential values are explicitly out of scope.
 Literal credential-shaped values in the covered files are rejected, including
 assignments, command arguments, connection strings, and YAML/JSON/XML/CSV/INI
 style fields.  Runtime expressions and generated values remain allowed.
+
+Attached short-option values are fail-closed: an attached value after the
+short password switch is treated as credential-bearing unless the option is
+one of the exact, case-insensitive non-credential allowlist entries
+``-path``, ``-pathtype``, ``-project``, ``-properties``, ``-platform``,
+``-publish``, ``-preview``, ``-parallel``, ``-port``, ``-provider``,
+``-packagedirectory``, ``-passthru``, or ``-parent``.  The allowlist entries
+may be followed by end of token, whitespace, ``:``, ``=``, or normal quoting
+punctuation.  Option names or values assembled by shell concatenation, and
+encoded values, cannot be evaluated by this static scanner and remain outside
+its guarantee.
 """
 
 from __future__ import annotations
@@ -62,12 +73,44 @@ KEY_EQUALS_VALUE = re.compile(
     rf"(?is)(?<![\w-])['\"]?(?P<key>[\w.-]*{SENSITIVE_NAME_TEXT}[\w.-]*)['\"]?"
     rf"\s*=\s*(?P<value>{VALUE})"
 )
+SHORT_OPTION_PREFIX = "-" + "p"
 COMMAND_ARGUMENT = re.compile(
     rf"(?is)(?<![\w-])(?:"
     rf"--{SENSITIVE_NAME_TEXT}|"
     rf"-{SENSITIVE_NAME_TEXT}|"
-    rf"-p"
-    rf")(?:\s*=\s*|\s+)(?P<value>{VALUE})"
+    rf"{SHORT_OPTION_PREFIX}"
+    rf")(?:\s*[:=]\s*|\s+)(?P<value>{VALUE})"
+)
+NON_CREDENTIAL_SHORT_OPTIONS = frozenset(
+    {
+        "-path",
+        "-pathtype",
+        "-project",
+        "-properties",
+        "-platform",
+        "-publish",
+        "-preview",
+        "-parallel",
+        "-port",
+        "-provider",
+        "-packagedirectory",
+        "-passthru",
+        "-parent",
+    }
+)
+NON_CREDENTIAL_SHORT_OPTION_SUFFIXES = "|".join(
+    re.escape(option[2:])
+    for option in sorted(NON_CREDENTIAL_SHORT_OPTIONS, key=len, reverse=True)
+)
+SHORT_OPTION_BOUNDARY = r"$|[\s:=`'\"\)\]\},;]"
+ATTACHED_SHORT_COMMAND_ARGUMENT = re.compile(
+    rf"(?is)(?<![\w-]){SHORT_OPTION_PREFIX}"
+    rf"(?!(?:{NON_CREDENTIAL_SHORT_OPTION_SUFFIXES})(?={SHORT_OPTION_BOUNDARY}))"
+    rf"(?P<value>(?=[^;\r\n\s:=]){VALUE})"
+)
+ATTACHED_SENSITIVE_COMMAND_ARGUMENT = re.compile(
+    rf"(?is)(?<![\w-])(?:--{SENSITIVE_NAME_TEXT}|-{SENSITIVE_NAME_TEXT})"
+    rf"(?P<value>(?=[^;\r\n\s:=]){VALUE})"
 )
 XML_ELEMENT_VALUE = re.compile(
     rf"(?is)<(?P<tag>(?:{SENSITIVE_NAME_TEXT}[\w:.-]*|[A-Za-z_][\w:.-]*{SENSITIVE_NAME_TEXT}[\w:.-]*))\b[^>]*>"
@@ -158,6 +201,8 @@ def credential_matches(text: str) -> Iterator[re.Match[str]]:
         KEY_VALUE,
         KEY_EQUALS_VALUE,
         COMMAND_ARGUMENT,
+        ATTACHED_SHORT_COMMAND_ARGUMENT,
+        ATTACHED_SENSITIVE_COMMAND_ARGUMENT,
         XML_ELEMENT_VALUE,
     ):
         yield from pattern.finditer(text)

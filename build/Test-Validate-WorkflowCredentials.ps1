@@ -381,6 +381,81 @@ jobs:
 "@
         },
         @{
+            Name = "attached-short-password-command-argument"
+            LegacyPasses = $true
+            Contents = @"
+name: attached-short-password-command-argument
+jobs:
+  test:
+    steps:
+      - run: tool.exe -p`"$secret`"
+"@
+        },
+        @{
+            Name = "colon-short-password-command-argument"
+            LegacyPasses = $true
+            Files = @{
+                "build/colon-short-password-command.ps1" = "tool.exe -p:`"$secret`""
+            }
+            Contents = @"
+name: colon-short-password-command-argument
+jobs:
+  test:
+    steps:
+      - run: ./build/colon-short-password-command.ps1
+"@
+        },
+        @{
+            Name = "colon-long-password-command-argument"
+            LegacyPasses = $true
+            Contents = @"
+name: colon-long-password-command-argument
+jobs:
+  test:
+    steps:
+      - run: tool.exe --password:`"$secret`"
+"@
+        },
+        @{
+            Name = "colon-pascal-password-command-argument"
+            LegacyPasses = $true
+            Files = @{
+                "build/colon-pascal-password-command.ps1" = "tool.exe -Password:`"$secret`""
+            }
+            Contents = @"
+name: colon-pascal-password-command-argument
+jobs:
+  test:
+    steps:
+      - run: ./build/colon-pascal-password-command.ps1
+"@
+        },
+        @{
+            Name = "attached-short-password-equals-command-argument"
+            LegacyPasses = $true
+            Files = @{
+                "build/attached-short-password-equals-command.ps1" = "tool.exe -p=`"$secret`""
+            }
+            Contents = @"
+name: attached-short-password-equals-command-argument
+jobs:
+  test:
+    steps:
+      - run: ./build/attached-short-password-equals-command.ps1
+"@
+        },
+        @{
+            Name = "unallowlisted-attached-short-option"
+            LegacyPasses = $true
+            Contents = @"
+name: unallowlisted-attached-short-option
+jobs:
+  test:
+    steps:
+      - run: tool.exe -pathological`"$secret`"
+"@
+        },
+        @{
             Name = "env-indirection"
             LegacyPasses = $true
             Script = @"
@@ -464,6 +539,43 @@ jobs:
         }
         if (-not $case.LegacyPasses -and $legacyResult.ExitCode -eq 0) {
             throw "Pre-fix validator unexpectedly accepted existing case '$($case.Name)'."
+        }
+    }
+
+    $passingCases = @(
+        @{
+            Name = "allowlisted-attached-short-options"
+            Contents = @'
+name: allowlisted-attached-short-options
+jobs:
+  test:
+    steps:
+      - run: >-
+          tool.exe -path:src -project:app -properties:props -platform:x64
+          -publish:feed -preview:latest -parallel:4 -port:5432 -provider:sql
+'@
+        },
+        @{
+            Name = "attached-runtime-command-arguments"
+            Contents = @'
+name: attached-runtime-command-arguments
+jobs:
+  test:
+    steps:
+      - run: >-
+          tool.exe -p"$env:EFGUARD_PASSWORD"
+          --password:"${{ secrets.RUNTIME_PASSWORD }}"
+'@
+        }
+    )
+
+    foreach ($case in $passingCases) {
+        Write-Workflow $case.Name $case.Contents
+        Sync-TrackedFiles
+
+        $result = Invoke-Validator $temporaryRoot
+        if ($result.ExitCode -ne 0) {
+            throw "Structural validator rejected positive case '$($case.Name)'. Output: $($result.Output)"
         }
     }
 
