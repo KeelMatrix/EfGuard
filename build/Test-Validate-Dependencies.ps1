@@ -30,12 +30,19 @@ function Invoke-Audit([string] $Name, [string] $Report, [int] $CommandExitCode) 
     }
 }
 
+function Normalize-LineEndings([string] $Value) {
+    if ($null -eq $Value) { return $null }
+    return $Value.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
 function Assert-Fails([string] $Name, [string] $Report, [int] $CommandExitCode, [string] $ExpectedMessage) {
     $result = Invoke-Audit $Name $Report $CommandExitCode
     if ($result.ExitCode -eq 0) {
         throw "$Name unexpectedly passed. Output: $($result.Output)"
     }
-    if ($result.Output -notmatch [regex]::Escape($ExpectedMessage)) {
+    $normalizedOutput = Normalize-LineEndings $result.Output
+    $normalizedExpectedMessage = Normalize-LineEndings $ExpectedMessage
+    if ($normalizedOutput -notmatch [regex]::Escape($normalizedExpectedMessage)) {
         throw "$Name failed for the wrong reason. Expected '$ExpectedMessage'. Output: $($result.Output)"
     }
 }
@@ -93,6 +100,23 @@ exit "$EFGUARD_AUDIT_TEST_EXIT_CODE"
         "Unable to inspect the dependency graph." `
         7 `
         "The vulnerability command failed with exit code 7."
+
+    $wrongMessageRejected = $false
+    try {
+        Assert-Fails "wrong-message" `
+            "The given project 'Example' has the following vulnerable packages`r`n  > Example.Package 1.0.0 High" `
+            0 `
+            "The dependency graph reported a different result."
+    }
+    catch {
+        if ($_.Exception.Message -notmatch "failed for the wrong reason") {
+            throw
+        }
+        $wrongMessageRejected = $true
+    }
+    if (-not $wrongMessageRejected) {
+        throw "The dependency audit contract accepted a wrong expected message."
+    }
 
     Write-Output "Dependency audit fail-closed contract passed."
 }
