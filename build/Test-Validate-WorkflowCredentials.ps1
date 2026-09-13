@@ -54,6 +54,8 @@ foreach ($workflow in @(Get-ChildItem -LiteralPath $workflowRoot -Recurse -File 
 
 try {
     New-Item -ItemType Directory -Path $workflowDirectory, $scriptDirectory -Force | Out-Null
+    & git -C $temporaryRoot init --quiet
+    if ($LASTEXITCODE -ne 0) { throw "could not initialize synthetic repository" }
     $legacyValidatorPath = Join-Path $temporaryRoot "legacy-validator.ps1"
     $legacyValidator | Set-Content -LiteralPath $legacyValidatorPath -Encoding utf8
 
@@ -65,11 +67,27 @@ try {
         }
     }
 
-    function Write-Workflow([string] $Name, [string] $Contents) {
-        Get-ChildItem -LiteralPath $workflowDirectory -File -ErrorAction SilentlyContinue | Remove-Item -Force
-        Get-ChildItem -LiteralPath $scriptDirectory -File -ErrorAction SilentlyContinue | Remove-Item -Force
-        $Contents | Set-Content -LiteralPath (Join-Path $workflowDirectory "$Name.yml") -Encoding utf8
-    }
+function Write-Workflow([string] $Name, [string] $Contents) {
+	Get-ChildItem -LiteralPath $temporaryRoot -Force |
+		Where-Object Name -notin @(".git", "legacy-validator.ps1") |
+		Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+	New-Item -ItemType Directory -Path $workflowDirectory, $scriptDirectory -Force | Out-Null
+	$Contents | Set-Content -LiteralPath (Join-Path $workflowDirectory "$Name.yml") -Encoding utf8
+}
+
+function Write-Files([hashtable] $Files) {
+	foreach ($file in $Files.GetEnumerator()) {
+		$path = Join-Path $temporaryRoot $file.Key
+		$parent = Split-Path -Parent $path
+		New-Item -ItemType Directory -Path $parent -Force | Out-Null
+		$file.Value | Set-Content -LiteralPath $path -Encoding utf8
+	}
+}
+
+function Sync-TrackedFiles {
+	& git -C $temporaryRoot add -A 2>$null | Out-Null
+	if ($LASTEXITCODE -ne 0) { throw "could not update synthetic repository index" }
+}
 
     $secret = "Synthetic-Literal-" + [Guid]::NewGuid().ToString("N") + "!"
     $cases = @(
@@ -188,6 +206,181 @@ jobs:
 "@
         },
         @{
+            Name = "block-script-assignment-split"
+            LegacyPasses = $true
+            Script = "`$databasePassword =`n  `"$secret`"`n"
+            Contents = @"
+name: block-script-assignment-split
+jobs:
+  test:
+    steps:
+      - run: ./build/credential-script.ps1
+"@
+        },
+        @{
+            Name = "nested-script-2"
+            LegacyPasses = $true
+            Files = @{
+                "build/outer.ps1" = '& "$PSScriptRoot/inner.ps1"'
+                "build/inner.ps1" = "`$databasePassword = `"$secret`""
+            }
+            Contents = @"
+name: nested-script-2
+jobs:
+  test:
+    steps:
+      - run: ./build/outer.ps1
+"@
+        },
+        @{
+            Name = "nested-script-3"
+            LegacyPasses = $true
+            Files = @{
+                "build/outer.ps1" = '& "$PSScriptRoot/middle.ps1"'
+                "build/middle.ps1" = '& "$PSScriptRoot/inner.ps1"'
+                "build/inner.ps1" = "`$databasePassword = `"$secret`""
+            }
+            Contents = @"
+name: nested-script-3
+jobs:
+  test:
+    steps:
+      - run: ./build/outer.ps1
+"@
+        },
+        @{
+            Name = "ci-wired-json"
+            LegacyPasses = $true
+            Files = @{
+                "build/read-ci-json.ps1" = 'Get-Content ./fixtures/ci-credentials.json | ConvertFrom-Json'
+                "fixtures/ci-credentials.json" = "{`"password`":`"$secret`"}"
+            }
+            Contents = @"
+name: ci-wired-json
+jobs:
+  test:
+    steps:
+      - run: ./build/read-ci-json.ps1
+"@
+        },
+        @{
+            Name = "reachable-script-data-file"
+            LegacyPasses = $true
+            Files = @{
+                "build/read-data.ps1" = 'Get-Content ./fixtures/credentials.ini'
+                "fixtures/credentials.ini" = "password=$secret"
+            }
+            Contents = @"
+name: reachable-script-data-file
+jobs:
+  test:
+    steps:
+      - run: ./build/read-data.ps1
+"@
+        },
+        @{
+            Name = "reachable-xml-credential"
+            LegacyPasses = $true
+            Files = @{
+                "build/read-xml.ps1" = 'Get-Content ./fixtures/credentials.xml'
+                "fixtures/credentials.xml" = "<settings><password>$secret</password></settings>"
+            }
+            Contents = @"
+name: reachable-xml-credential
+jobs:
+  test:
+    steps:
+      - run: ./build/read-xml.ps1
+"@
+        },
+        @{
+            Name = "reachable-csv-credential"
+            LegacyPasses = $true
+            Files = @{
+                "build/read-csv.ps1" = 'Get-Content ./fixtures/credentials.csv'
+                "fixtures/credentials.csv" = "username,password`nci-user,$secret"
+            }
+            Contents = @"
+name: reachable-csv-credential
+jobs:
+  test:
+    steps:
+      - run: ./build/read-csv.ps1
+"@
+        },
+        @{
+            Name = "reachable-multiline-connection"
+            LegacyPasses = $true
+            Files = @{
+                "build/connection.ps1" = (@'
+$connection = @"
+Server=localhost;
+__CREDENTIAL_KEY__="__SECRET__";
+TrustServerCertificate=True
+"@
+'@).Replace("__CREDENTIAL_KEY__", "Password").Replace("__SECRET__", $secret)
+            }
+            Contents = @"
+name: reachable-multiline-connection
+jobs:
+  test:
+    steps:
+      - run: ./build/connection.ps1
+"@
+        },
+        @{
+            Name = "password-command-argument"
+            LegacyPasses = $true
+            Contents = @"
+name: password-command-argument
+jobs:
+  test:
+    steps:
+      - run: dotnet tool run fixture --password "$secret"
+"@
+        },
+        @{
+            Name = "password-command-argument-split"
+            LegacyPasses = $true
+            Contents = @"
+name: password-command-argument-split
+jobs:
+  test:
+    steps:
+      - run: |
+          dotnet tool run fixture --password
+            "$secret"
+"@
+        },
+        @{
+            Name = "password-command-argument-case-insensitive"
+            LegacyPasses = $true
+            Files = @{
+                "build/password-command.ps1" = "tool.exe -Password `"$secret`""
+            }
+            Contents = @"
+name: password-command-argument-case-insensitive
+jobs:
+  test:
+    steps:
+      - run: ./build/password-command.ps1
+"@
+        },
+        @{
+            Name = "short-password-command-argument"
+            LegacyPasses = $true
+            Files = @{
+                "build/short-password-command.ps1" = "tool.exe -p `"$secret`""
+            }
+            Contents = @"
+name: short-password-command-argument
+jobs:
+  test:
+    steps:
+      - run: ./build/short-password-command.ps1
+"@
+        },
+        @{
             Name = "env-indirection"
             LegacyPasses = $true
             Script = @"
@@ -251,10 +444,14 @@ jobs:
     )
 
     foreach ($case in $cases) {
+		Write-Workflow $case.Name $case.Contents
         if ($case.ContainsKey("Script")) {
             $case.Script | Set-Content -LiteralPath (Join-Path $scriptDirectory "credential-script.ps1") -Encoding utf8
         }
-        Write-Workflow $case.Name $case.Contents
+		if ($case.ContainsKey("Files")) {
+			Write-Files $case.Files
+		}
+		Sync-TrackedFiles
 
         $result = Invoke-Validator $temporaryRoot
         if ($result.ExitCode -eq 0) {
@@ -268,6 +465,58 @@ jobs:
         if (-not $case.LegacyPasses -and $legacyResult.ExitCode -eq 0) {
             throw "Pre-fix validator unexpectedly accepted existing case '$($case.Name)'."
         }
+    }
+
+    Write-Workflow "depth-cap" @'
+name: depth-cap
+jobs:
+  test:
+    steps:
+      - run: ./build/depth-0.ps1
+'@
+    $depthFiles = @{}
+    for ($index = 0; $index -lt 5; $index++) {
+        $next = if ($index -lt 4) {
+            '& "$PSScriptRoot/depth-{0}.ps1"' -f ($index + 1)
+        }
+        else {
+            ('$password = "__SECRET__"').Replace("__SECRET__", $secret)
+        }
+        $depthFiles["build/depth-$index.ps1"] = $next
+    }
+    Write-Files $depthFiles
+    Sync-TrackedFiles
+    $depthResult = Invoke-Validator $temporaryRoot
+    if ($depthResult.ExitCode -eq 0) {
+        throw "The structural validator accepted a reachable reference beyond its depth cap."
+    }
+    $depthLegacyResult = Invoke-LegacyValidator $temporaryRoot
+    if ($depthLegacyResult.ExitCode -ne 0) {
+        throw "Pre-fix validator did not accept the depth-cap bypass case."
+    }
+
+    Write-Workflow "file-cap" @'
+name: file-cap
+jobs:
+  test:
+    steps:
+      - run: ./build/file-cap.ps1
+'@
+    $capFiles = @{
+        "build/file-cap.ps1" = (1..65 | ForEach-Object { "Write-Output ./fixtures/reachable-$_.txt" }) -join "`n"
+    }
+    for ($index = 1; $index -le 65; $index++) {
+        $capFiles["fixtures/reachable-$index.txt"] = "safe-$index"
+    }
+    Write-Files $capFiles
+    Sync-TrackedFiles
+    $capResult = Invoke-Validator $temporaryRoot
+    if ($capResult.ExitCode -eq 0) {
+        throw "The structural validator accepted a reachable closure beyond its file cap."
+    }
+    $capLegacyResult = Invoke-LegacyValidator $temporaryRoot
+    if ($capLegacyResult.ExitCode -ne 0) {
+        throw "Pre-fix validator did not accept the file-cap bypass case."
     }
 
     Write-Workflow "malformed" "name: ["
