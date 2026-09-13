@@ -8,7 +8,7 @@ $previousPath = $env:PATH
 
 function New-FakeDotnet([string] $Name, [string] $Report, [int] $ExitCode) {
     $reportPath = Join-Path $temporaryRoot "$Name.report"
-    Set-Content -LiteralPath $reportPath -Value $Report -Encoding utf8
+    [IO.File]::WriteAllBytes($reportPath, [Text.Encoding]::UTF8.GetBytes($Report))
     $env:EFGUARD_AUDIT_TEST_REPORT = $reportPath
     $env:EFGUARD_AUDIT_TEST_EXIT_CODE = [string]$ExitCode
 }
@@ -35,16 +35,20 @@ function Normalize-LineEndings([string] $Value) {
     return $Value.Replace("`r`n", "`n").Replace("`r", "`n")
 }
 
-function Assert-Fails([string] $Name, [string] $Report, [int] $CommandExitCode, [string] $ExpectedMessage) {
-    $result = Invoke-Audit $Name $Report $CommandExitCode
-    if ($result.ExitCode -eq 0) {
-        throw "$Name unexpectedly passed. Output: $($result.Output)"
+function Assert-FailedResult([string] $Name, [psobject] $Result, [string] $ExpectedMessage) {
+    if ($Result.ExitCode -eq 0) {
+        throw "$Name unexpectedly passed. Output: $($Result.Output)"
     }
-    $normalizedOutput = Normalize-LineEndings $result.Output
+    $normalizedOutput = Normalize-LineEndings $Result.Output
     $normalizedExpectedMessage = Normalize-LineEndings $ExpectedMessage
     if ($normalizedOutput -notmatch [regex]::Escape($normalizedExpectedMessage)) {
-        throw "$Name failed for the wrong reason. Expected '$ExpectedMessage'. Output: $($result.Output)"
+        throw "$Name failed for the wrong reason. Expected '$ExpectedMessage'. Output: $($Result.Output)"
     }
+}
+
+function Assert-Fails([string] $Name, [string] $Report, [int] $CommandExitCode, [string] $ExpectedMessage) {
+    $result = Invoke-Audit $Name $Report $CommandExitCode
+    Assert-FailedResult $Name $result $ExpectedMessage
 }
 
 try {
@@ -79,8 +83,21 @@ exit "$EFGUARD_AUDIT_TEST_EXIT_CODE"
     }
     $env:PATH = "$fakeDotnetDirectory$([IO.Path]::PathSeparator)$previousPath"
 
+    $multilineVulnerableReportLf = "The given project 'Example' has the following vulnerable packages`n  > Example.Package 1.0.0 High"
+    $multilineVulnerableReportCrLf = $multilineVulnerableReportLf.Replace("`n", "`r`n")
+    $lfResult = Invoke-Audit "vulnerable-package-report-lf" $multilineVulnerableReportLf 0
+    $crlfResult = Invoke-Audit "vulnerable-package-report-crlf" $multilineVulnerableReportCrLf 0
+    Assert-FailedResult "vulnerable-package-report-lf" $lfResult $multilineVulnerableReportLf
+    Assert-FailedResult "vulnerable-package-report-crlf" $crlfResult $multilineVulnerableReportCrLf
+    if ($lfResult.ExitCode -ne $crlfResult.ExitCode) {
+        throw "LF and CRLF vulnerable reports produced different validator exit codes."
+    }
+    if ((Normalize-LineEndings $lfResult.Output) -ne (Normalize-LineEndings $crlfResult.Output)) {
+        throw "LF and CRLF vulnerable reports produced different validator handling."
+    }
+
     Assert-Fails "vulnerable-package-report" `
-        "The given project 'Example' has the following vulnerable packages`n  > Example.Package 1.0.0 High" `
+        "The given project 'Example' has the following vulnerable packages" `
         0 `
         "The dependency graph contains vulnerable packages."
 
