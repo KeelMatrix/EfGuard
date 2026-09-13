@@ -2,7 +2,7 @@
 
 This directory contains repository hooks that keep commit history consistent with the public repository's authorship policy.
 
-## Enable the checks
+## Enable the Checks
 
 Run `git config core.hooksPath .githooks` once per clone to enable the repository's local commit checks.
 

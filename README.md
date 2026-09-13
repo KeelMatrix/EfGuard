@@ -45,9 +45,9 @@ efguard check --project src/Orders/Orders.csproj --startup-project src/Orders.Ap
 
 With `--startup-project`, EfGuard follows the normal EF Core design-time startup path in a bounded child process: it resolves the startup host through `BuildWebHost`, `CreateWebHostBuilder`, `CreateHostBuilder`, or the startup entry point, then resolves the selected `DbContext` (or `IDbContextFactory<TContext>`) from the startup application's scoped services. An `IDesignTimeDbContextFactory<TContext>` and then a parameterless constructor are fallbacks when startup services do not provide the context. Keep all design-time startup code and factories free of production connections and side effects. The worker response file is limited to 4 MiB (4,194,304 bytes); an oversized response is an untrustworthy extraction failure and returns exit code `2`.
 
-In repositories with more than one `DbContext`, `--context` also scopes migration discovery. EfGuard analyzes exactly the migrations EF Core attributes to the selected context through its migrations metadata (the `IMigrationsAssembly` service and the context's configured migrations assembly). EF Core treats a migration as part of a context only when the migration carries `[DbContext(typeof(ThatContext))]`, so migrations of another context are never analyzed for the selected context and a context that has no migrations reports zero operations. When the migrations assembly still contains migration classes that no `[DbContext]` attribute claims, EfGuard cannot attribute them to the selected context and fails closed with an actionable diagnostic instead of scanning every `Migration` subclass in that assembly.
+In repositories with more than one `DbContext`, `--context` also scopes migration discovery. EfGuard analyzes exactly the migrations EF Core attributes to the selected context through its migrations metadata (the `IMigrationsAssembly` service and the context's configured migrations assembly). EF Core treats a migration as part of a context only when the migration carries `[DbContext(typeof(ThatContext))]`, so migrations of another context are never analyzed for the selected context and a context that has no migrations reports zero operations. When no migrations are attributed to the selected context while its migrations assembly still contains migration classes that no `[DbContext]` attribute claims, EfGuard fails closed with an actionable diagnostic instead of scanning every `Migration` subclass in that assembly.
 
-## Network and offline behavior
+## Network and Offline Behavior
 
 Core analysis is local and offline. EfGuard never restores packages and never contacts a package feed, so the dependency graph must come from a restore you already ran:
 
@@ -58,7 +58,7 @@ efguard check --project src/Orders/Orders.csproj
 
 Extraction builds the selected project with `--no-restore` against that restored graph. When the graph is missing, EfGuard fails closed with exit code `2` and tells you to run `dotnet restore`; it never silently falls back to a network restore. `--baseline` reuses the same restored graph from your working tree inside an isolated temporary checkout, so the active worktree is never modified. The only normal network behavior is best-effort telemetry.
 
-## Exit codes and output
+## Exit Codes and Output
 
 - `0`: trustworthy analysis completed with no configured blocking or unverified diagnostic.
 - `1`: trustworthy analysis completed with a blocking or unverified diagnostic.
@@ -66,9 +66,9 @@ Extraction builds the selected project with `--no-restore` against that restored
 
 Use `--format json` for automation. JSON has `schemaVersion: 1`, `provider`, `providerSql`, `compatibility`, `baseline`, `summary`, `diagnostics`, and `errors`. Each diagnostic contains `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, optional provider/migration/location, `affectedState`, `explanation`, `remediation`, and `uncertainty`.
 
-`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. Each statement carries its migration and operation ordinal, and provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. `engineVerified` is true only when the repository's real database-engine integration gates have verified the provider behavior behind every provider finding in the report. EfGuard ships that evidence as a versioned provider engine evidence manifest, and it only promotes a provider-locking finding to `HIGH`/`high` confidence when the manifest covers the finding's rule and provider. Missing or unverified engine evidence leaves the finding `UNVERIFIED` instead of asserting a high-confidence provider claim.
+`providerSql` records provider-generated SQL for the migration operations when the target provider exposes that service. Each statement carries its migration and operation ordinal. `EFG301` and `EFG302` require exactly one matching operation-level statement with the expected SQL shape; `EFG303` uses provider engine evidence independently because it covers foreign-key validation. `engineVerified` is true only when the repository's real database-engine integration gates have verified the provider behavior behind every provider finding in the report. EfGuard ships that evidence as a versioned provider engine evidence manifest, and it only promotes a provider-locking finding to `HIGH`/`high` confidence when the manifest covers the finding's rule and provider. Missing or unverified engine evidence leaves the finding `UNVERIFIED` instead of asserting a high-confidence provider claim.
 
-## Risk dimensions
+## Risk Dimensions
 
 Findings identify the affected risk dimensions separately:
 
@@ -80,7 +80,7 @@ Findings identify the affected risk dimensions separately:
 
 An `UNVERIFIED` severity or `unknown` confidence indicates that the available static evidence is insufficient; it is not a clean result. EfGuard does not prove runtime lock duration or guarantee zero downtime.
 
-## Configuration and suppressions
+## Configuration and Suppressions
 
 Create `efguard.json` at the repository root:
 
@@ -127,17 +127,17 @@ Severity values are `error`/`block`, `warning`/`high`, `info`/`advisory`, `unver
 
 Unknown operations, raw SQL, and custom operations are never silently treated as safe. Transaction suppression is an independent risk dimension: arbitrary SQL retains EFG399 and may also report EFG305, while a classified unbounded backfill may report EFG304 and EFG305 together. SQL is classified locally and is not included in telemetry. Provider lock behavior depends on engine version, capabilities, and workload; EfGuard cannot guarantee zero downtime.
 
-Provider behavior claims (EFG301, EFG302, and EFG303) are promoted to `HIGH`/`high` confidence only when the repository's real SQL Server and PostgreSQL integration gates have verified that behavior and the shipped provider engine evidence covers the provider. Those gates execute the provider-generated statements against real engines and record the verified claims; unverified claims stay `UNVERIFIED` and normally produce exit code `1`.
+Provider behavior claims (EFG301, EFG302, and EFG303) are promoted to `HIGH`/`high` confidence only when the repository's real SQL Server and PostgreSQL integration gates have verified that behavior and the shipped provider engine evidence covers the provider. Those gates execute representative provider SQL against real engines and record the verified claims; EFG301 and EFG302 additionally require matching provider-generated SQL in the report. Unverified claims stay `UNVERIFIED` and normally produce exit code `1`.
 
-## Rollout guidance
+## Rollout Guidance
 
 Prefer expand, transition, cutover, and contract stages. Add compatible schema first, deploy code that can read both generations, backfill in bounded/resumable batches, switch reads/writes, and remove old schema only after old instances are retired. Provider-specific online or concurrent options still require operational validation.
 
 The baseline matrix is evaluated from extracted EF models and is included in JSON as `compatibility`: previous application + previous schema, previous application + target schema, current application + previous schema, and current application + target schema. With `rolling`, both overlap states are blocking when the evidence shows incompatibility. With `expand-contract`, previous-application + target-schema is advisory because the strategy declares a staged contract order; current-application + previous-schema is not required. With `blue-green`, neither overlap state is required because the strategy declares isolated application/schema cutover. These strategy verdicts still do not inspect live traffic, queries, or deployment ordering.
 
-For the default `rolling` policy, a scan without `--baseline` emits EFG399 because compatibility with the previous application/schema generation has no evidence; it cannot exit cleanly unless EFG399 is explicitly overridden or disabled. When `minimumCompatibleVersions` is greater than one, one `--baseline` reference is also insufficient to prove the requested history. With the default one-generation policy, a compatible supplied baseline remains clean. Without a baseline, EfGuard still analyzes only the latest discovered migration, so operation-level diagnostics are not masked by the history finding. With a baseline, it analyzes migrations present in the current extraction but absent from the baseline extraction, treating those as the pending change set.
+For the default `rolling` policy, a scan without `--baseline` emits EFG399 because compatibility with the previous application/schema generation has no evidence; it cannot exit cleanly unless EFG399 is explicitly overridden or disabled. When `minimumCompatibleVersions` is greater than one, one `--baseline` reference is also insufficient to prove the requested history. With the default one-generation policy, a compatible supplied baseline satisfies the history requirement; operation-level findings still apply. Without a baseline, EfGuard still analyzes only the latest discovered migration, so operation-level diagnostics are not masked by the history finding. With a baseline, it analyzes migrations present in the current extraction but absent from the baseline extraction, treating those as the pending change set.
 
-## Supported matrix
+## Supported Matrix
 
 The CLI targets `net8.0`. Extraction supports EF Core 8, 9, and 10 projects when their own restored dependency graph can be built. Customer projects targeting `net8.0`, `net9.0`, or `net10.0` use the matching isolated worker. Supported providers are Microsoft SQL Server/Azure SQL and Npgsql PostgreSQL. Unsupported providers return an unverified provider result and exit `2`; EfGuard does not guess provider locking behavior.
 

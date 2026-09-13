@@ -20,7 +20,7 @@ dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj -c Release --no-res
 
 For the repository CI-equivalent validation path, use `pwsh ./build/validate.ps1` on Windows or `./build/validate.sh` on Linux/macOS. The scripts set `KEELMATRIX_NO_TELEMETRY=1`, run the release build/test/format gates, inspect the package contract, and install the freshly built package into an isolated consumer cache.
 
-## Release finalization
+## Release Finalization
 
 Before creating a release tag, finalize the intended entry in `CHANGELOG.md`, commit and push that change, and run the same repository-controlled contract check on the exact commit that will be tagged:
 

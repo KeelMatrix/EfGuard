@@ -2,14 +2,14 @@
 
 This document defines the versioned JSON report emitted by `efguard check --format json` and the compatibility obligations for the v1 report and `efguard.json` configuration contracts. It is normative for the fields, versioning, rule IDs, CLI option names, and exit-code meanings described here; it does not replace the rule pages for diagnostic-specific behavior.
 
-## Report fields
+## Report Fields
 
 `efguard check --format json` emits one object with these top-level fields:
 
 - `schemaVersion`: integer `1`.
 - `toolVersion`: tool version.
 - `provider`: provider identity when extraction succeeded.
-- `providerSql`: `available`, `engineVerified`, `source`, and generated migration SQL `statements` when the provider exposes migration SQL generation. Each statement contains `migration`, `operationIndex`, and `sql`; provider-specific findings require exactly one matching operation-level statement with the expected SQL shape. SQL is local report evidence and is never sent through telemetry. `engineVerified` is `true` only when the report contains provider-behavior findings (EFG301, EFG302, EFG303) and every one of them was promoted to `high` confidence from the repository's real database-engine integration evidence. Provider-behavior findings are never reported with `high` confidence while `engineVerified` is `false`; they fall back to `severity: unverified` and `confidence: unknown`.
+- `providerSql`: `available`, `engineVerified`, `source`, and generated migration SQL `statements` when the provider exposes migration SQL generation. Each statement contains `migration`, `operationIndex`, and `sql`; `EFG301` and `EFG302` require exactly one matching operation-level statement with the expected SQL shape, while `EFG303` uses provider engine evidence independently for foreign-key validation. SQL is local report evidence and is never sent through telemetry. `engineVerified` is `true` only when the report contains provider-behavior findings (EFG301, EFG302, EFG303) and every one of them was promoted to `high` confidence from the repository's real database-engine integration evidence. Provider-behavior findings are never reported with `high` confidence while `engineVerified` is `false`; they fall back to `severity: unverified` and `confidence: unknown`.
 - `compatibility`: the configured `strategy`, `minimumCompatibleVersions`, all four model-state booleans, and the states evaluated for blocking verdicts.
 - `baseline`: `requested`, `reference`, and `available`.
 - `summary`: operation and severity counts plus `exitCode`.
@@ -20,7 +20,13 @@ Under the default `rolling` strategy, a report without a supplied baseline inclu
 
 Diagnostic fields are `ruleId`, `title`, `riskDimensions`, `severity`, `confidence`, `provider`, `migration`, `location`, `affectedState`, `explanation`, `remediation`, `uncertainty`, and `suppressed`. `severity` values are `advisory`, `high`, `block`, and `unverified`; `confidence` values are `high`, `medium`, and `unknown`.
 
-## Compatibility policy
+## Configuration Contract
+
+The optional `efguard.json` file uses configuration version `1`. Its top-level properties are `version`, `deployment`, `rules`, and `suppressions`. `deployment.strategy` accepts `rolling` (the default), `expand-contract`, or `blue-green`; `deployment.minimumCompatibleVersions` is a positive integer and defaults to `1`. `rules` maps documented rule IDs to `error`/`block`, `warning`/`high`, `info`/`advisory`, `unverified`, or `off`/`none`. Each suppression requires a known `rule` and non-empty `reason`; `migration` and `expires` are optional, and `expires` uses `yyyy-MM-dd`.
+
+Unknown properties and rule IDs, malformed values, and credential or connection-setting properties are rejected as configuration errors. Configuration changes must preserve these validation and security boundaries.
+
+## Compatibility Policy
 
 The JSON report and `efguard.json` configuration are versioned v1 contracts. Their version fields are intentionally separate from the tool version: `schemaVersion` identifies the report shape and `version` identifies the configuration shape. Rule IDs, their documented meanings, CLI option names, and exit codes `0`, `1`, and `2` are stable v1 contracts.
 

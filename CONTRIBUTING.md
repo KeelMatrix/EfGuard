@@ -2,11 +2,11 @@
 
 Contributions are welcome as focused fixes, tests, and documentation improvements.
 
-## Before you begin
+## Before You Begin
 
 Enable the repository's local checks with `git config core.hooksPath .githooks`. Keep changes focused and do not include credentials, generated reports, or machine-specific paths.
 
-## Validate locally
+## Validate Locally
 
 Run the repository CI-equivalent path, which disables telemetry for validation:
 
@@ -34,6 +34,6 @@ Add meaningful positive and boundary regression coverage for every changed rule 
 
 Changes to CLI options, JSON reports, `efguard.json`, exit codes, or rule IDs require compatibility review, deterministic fixture updates only when intentional, and a `CHANGELOG.md` entry. See [JSON-SCHEMA.md](docs/JSON-SCHEMA.md). For vulnerabilities, use the private route in [SECURITY.md](SECURITY.md), not a public issue.
 
-## Submit a pull request
+## Submit a Pull Request
 
 Describe the user-facing problem and the focused change, include the validation you ran, and update the applicable documentation. Follow the expectations in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
