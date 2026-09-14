@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <IsPackable>false</IsPackable>
@@ -13,6 +13,9 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <ProjectReference Include="..\..\src\KeelMatrix.EfGuard\KeelMatrix.EfGuard.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\KeelMatrix.EfGuard.Worker\ProjectBuilder.cs" Link="Worker\ProjectBuilder.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />

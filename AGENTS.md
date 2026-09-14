@@ -1,4 +1,4 @@
-# EfGuard development guide
+﻿# EfGuard development guide
 
 ## Navigation
 
@@ -11,11 +11,8 @@
 ## Commands
 
 ```powershell
-dotnet restore KeelMatrix.EfGuard.sln
-dotnet build KeelMatrix.EfGuard.sln -c Release --no-restore
-dotnet test KeelMatrix.EfGuard.sln -c Release --no-build
-dotnet format KeelMatrix.EfGuard.sln --verify-no-changes
-dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj -c Release --no-restore
+pwsh ./build/test.ps1 -Configuration Release
+pwsh ./build/validate.ps1 -Configuration Release
 ```
 
 For the repository CI-equivalent validation path, use `pwsh ./build/validate.ps1` on Windows or `./build/validate.sh` on Linux/macOS. The scripts set `KEELMATRIX_NO_TELEMETRY=1`, run the release build/test/format gates, inspect the package contract, and install the freshly built package into an isolated consumer cache.

@@ -99,8 +99,25 @@ function Assert-PackedReadmeLinks([System.IO.Compression.ZipArchive] $Archive, [
 }
 
 function Invoke-Dotnet([string[]] $Arguments) {
-    & dotnet @Arguments
-    if ($LASTEXITCODE -ne 0) { Fail "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
+    $safeArguments = @($Arguments)
+    if ($Arguments.Count -gt 0 -and $Arguments[0] -in @("restore", "build", "test", "pack")) {
+        $safeArguments += @("-m:1", "-nodeReuse:false")
+    }
+
+    $previousNodeReuse = $env:MSBUILDDISABLENODEREUSE
+    $env:MSBUILDDISABLENODEREUSE = "1"
+    try {
+        & dotnet @safeArguments
+        if ($LASTEXITCODE -ne 0) { Fail "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
+    }
+    finally {
+        if ($null -eq $previousNodeReuse) {
+            Remove-Item Env:MSBUILDDISABLENODEREUSE -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:MSBUILDDISABLENODEREUSE = $previousNodeReuse
+        }
+    }
 }
 
 $packageDirectory = [IO.Path]::GetFullPath($PackageDirectory)

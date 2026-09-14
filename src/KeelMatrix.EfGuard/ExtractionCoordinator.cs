@@ -244,11 +244,13 @@ internal static class ExtractionCoordinator
         if (projectDirectory is null)
             return null;
 
+        (IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string?> environment) = CreateTargetFrameworkProbe(projectPath);
         ProcessResult result = await ProcessRunner.RunAsync(
             "dotnet",
-            ["msbuild", projectPath, "-getProperty:TargetFramework", "-getProperty:TargetFrameworks", "-nologo"],
+            arguments,
             projectDirectory,
             TimeSpan.FromSeconds(30),
+            environment,
             cancellationToken).ConfigureAwait(false);
         if (result.ExitCode != 0 || result.TimedOut || result.OutputExceeded)
             return null;
@@ -270,6 +272,11 @@ internal static class ExtractionCoordinator
 
         return null;
     }
+
+    internal static (IReadOnlyList<string> Arguments, IReadOnlyDictionary<string, string?> Environment) CreateTargetFrameworkProbe(string projectPath)
+        => (
+            ["msbuild", projectPath, "-getProperty:TargetFramework", "-getProperty:TargetFrameworks", "-nologo", "-m:1", "-nodeReuse:false"],
+            new Dictionary<string, string?> { ["MSBUILDDISABLENODEREUSE"] = "1" });
 
     private static void AddFrameworks(JsonElement properties, string propertyName, List<string> frameworks)
     {

@@ -12,6 +12,7 @@ permissions:
 
 env:
   KEELMATRIX_NO_TELEMETRY: "1"
+  MSBUILDDISABLENODEREUSE: "1"
 
 jobs:
   credential-guard:
@@ -64,16 +65,18 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 
       - name: Build Release
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -m:1 -nodeReuse:false
 
       - name: Verify formatting and analyzers
+        # dotnet format rejects MSBuild's -m/-nodeReuse switches; the workflow-level
+        # MSBUILDDISABLENODEREUSE setting still isolates its MSBuild evaluation.
         run: dotnet format KeelMatrix.EfGuard.sln --verify-no-changes --no-restore
 
       - name: Run full test suite
-        run: dotnet test KeelMatrix.EfGuard.sln --configuration Release --no-build --no-restore
+        run: dotnet test KeelMatrix.EfGuard.sln --configuration Release --no-build --no-restore -m:1 -nodeReuse:false
 
   provider-evidence:
     name: Provider / ${{ matrix.name }}
@@ -132,10 +135,10 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 
       - name: Build Release
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -m:1 -nodeReuse:false
 
       - name: Inspect provider-generated SQL for ${{ matrix.name }}
         shell: pwsh
@@ -149,7 +152,7 @@ jobs:
           $errorPath = Join-Path $env:RUNNER_TEMP "efguard-$($env:FIXTURE_NAME).stderr"
           $process = Start-Process -FilePath dotnet -ArgumentList @(
             "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
-            "--configuration", "Release", "--no-build", "--no-restore", "--",
+            "--configuration", "Release", "--no-build", "--no-restore", "-m:1", "-nodeReuse:false", "--",
             "check", "--project", $env:FIXTURE_PROJECT, "--format", "json"
           ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
           $status = $process.ExitCode
@@ -224,10 +227,10 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 
       - name: Build Release
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -m:1 -nodeReuse:false
 
       - name: Run real-engine integration tests
         run: >
@@ -235,6 +238,7 @@ jobs:
           --configuration Release
           --no-build
           --no-restore
+          -m:1 -nodeReuse:false
           --filter FullyQualifiedName~SqlServerProviderEngineTests
 
       - name: Verify recorded engine evidence matches the shipped manifest
@@ -251,7 +255,7 @@ jobs:
           $errorPath = Join-Path $env:RUNNER_TEMP "efguard-sqlserver-engine.stderr"
           $process = Start-Process -FilePath dotnet -ArgumentList @(
             "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
-            "--configuration", "Release", "--no-build", "--no-restore", "--",
+            "--configuration", "Release", "--no-build", "--no-restore", "-m:1", "-nodeReuse:false", "--",
             "check", "--project", "fixtures/Ef9SqlServer/Ef9SqlServerFixture.csproj", "--format", "json"
           ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
           if ($process.ExitCode -notin @(0, 1)) {
@@ -319,10 +323,10 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 
       - name: Build Release
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -m:1 -nodeReuse:false
 
       - name: Run real-engine integration tests
         run: >
@@ -330,6 +334,7 @@ jobs:
           --configuration Release
           --no-build
           --no-restore
+          -m:1 -nodeReuse:false
           --filter FullyQualifiedName~PostgreSqlProviderEngineTests
 
       - name: Verify recorded engine evidence matches the shipped manifest
@@ -346,7 +351,7 @@ jobs:
           $errorPath = Join-Path $env:RUNNER_TEMP "efguard-postgresql-engine.stderr"
           $process = Start-Process -FilePath dotnet -ArgumentList @(
             "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
-            "--configuration", "Release", "--no-build", "--no-restore", "--",
+            "--configuration", "Release", "--no-build", "--no-restore", "-m:1", "-nodeReuse:false", "--",
             "check", "--project", "fixtures/Ef9/Ef9Fixture.csproj", "--format", "json"
           ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
           if ($process.ExitCode -notin @(0, 1)) {
@@ -446,16 +451,17 @@ jobs:
           @(Get-TelemetryFiles) | Set-Content -Path (Join-Path $env:RUNNER_TEMP "efguard-telemetry-before.txt") -Encoding utf8
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 
       - name: Build Release
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -m:1 -nodeReuse:false
 
       - name: Pack the intended package and symbols
         run: >
           dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj
           --configuration Release
           --no-build
+          -m:1 -nodeReuse:false
           --include-symbols
           --p:SymbolPackageFormat=snupkg
           --output ./artifacts/packages
@@ -615,7 +621,7 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 
       - name: Check for vulnerable dependencies
         shell: pwsh

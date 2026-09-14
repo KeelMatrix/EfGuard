@@ -4,6 +4,17 @@
 public sealed class ProcessRunnerTests
 {
     [Fact]
+    public void TargetFrameworkProbeCarriesExplicitMsBuildNodeIsolation()
+    {
+        (IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string?> environment) =
+            ExtractionCoordinator.CreateTargetFrameworkProbe("fixture.csproj");
+
+        Assert.Contains("-m:1", arguments);
+        Assert.Contains("-nodeReuse:false", arguments);
+        Assert.Equal("1", environment["MSBUILDDISABLENODEREUSE"]);
+    }
+
+    [Fact]
     public async Task ProcessCompletesWithBoundedOutput()
     {
         ProcessResult result = await ProcessRunner.RunAsync("dotnet", ["--version"], Environment.CurrentDirectory, TimeSpan.FromSeconds(10), CancellationToken.None);

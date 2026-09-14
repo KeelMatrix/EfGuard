@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string] $SolutionPath = "KeelMatrix.EfGuard.sln"
 )
@@ -29,8 +29,22 @@ $arguments = @(
     "--include-transitive"
 )
 
-$outputLines = & dotnet @arguments 2>&1
-$status = $LASTEXITCODE
+$previousNodeReuse = $env:MSBUILDDISABLENODEREUSE
+$env:MSBUILDDISABLENODEREUSE = "1"
+try {
+    # dotnet list package does not accept MSBuild's -m/-nodeReuse switches; its internal evaluation
+    # still inherits this explicit setting, so the dependency audit cannot join reusable nodes.
+    $outputLines = & dotnet @arguments 2>&1
+    $status = $LASTEXITCODE
+}
+finally {
+    if ($null -eq $previousNodeReuse) {
+        Remove-Item Env:MSBUILDDISABLENODEREUSE -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:MSBUILDDISABLENODEREUSE = $previousNodeReuse
+    }
+}
 $report = $outputLines | Out-String
 $report | Write-Output
 

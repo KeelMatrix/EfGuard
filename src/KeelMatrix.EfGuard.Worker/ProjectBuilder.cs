@@ -8,22 +8,7 @@ internal static class ProjectBuilder
     internal static async Task<ProjectBuildOutcome> BuildAsync(string projectPath, string outputPath)
     {
         Directory.CreateDirectory(outputPath);
-        ProcessStartInfo startInfo = new()
-        {
-            FileName = "dotnet",
-            WorkingDirectory = Path.GetDirectoryName(projectPath) ?? Environment.CurrentDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-        foreach (string argument in new[]
-        {
-            "build", projectPath, "--configuration", "Release", "--nologo", "--no-restore",
-            "/p:OutputPath=" + EnsureTrailingSeparator(outputPath),
-            "/p:CopyLocalLockFileAssemblies=true"
-        })
-            startInfo.ArgumentList.Add(argument);
+        ProcessStartInfo startInfo = CreateStartInfo(projectPath, outputPath);
 
         using Process process = new() { StartInfo = startInfo };
         try
@@ -47,6 +32,29 @@ internal static class ProjectBuilder
             return new ProjectBuildOutcome(false, "The selected EF project could not be built.");
         }
         catch { return new ProjectBuildOutcome(false, "The selected EF project could not be built."); }
+    }
+
+    internal static ProcessStartInfo CreateStartInfo(string projectPath, string outputPath)
+    {
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = "dotnet",
+            WorkingDirectory = Path.GetDirectoryName(projectPath) ?? Environment.CurrentDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+        foreach (string argument in new[]
+        {
+            "build", projectPath, "--configuration", "Release", "--nologo", "--no-restore",
+            "-m:1", "-nodeReuse:false",
+            "/p:OutputPath=" + EnsureTrailingSeparator(outputPath),
+            "/p:CopyLocalLockFileAssemblies=true"
+        })
+            startInfo.ArgumentList.Add(argument);
+        return startInfo;
     }
 
     private static bool IndicatesMissingRestore(string output, string error)

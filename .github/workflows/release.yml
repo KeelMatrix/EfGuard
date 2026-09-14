@@ -10,6 +10,7 @@ permissions:
 
 env:
   KEELMATRIX_NO_TELEMETRY: "1"
+  MSBUILDDISABLENODEREUSE: "1"
 
 jobs:
   validate:
@@ -65,7 +66,7 @@ jobs:
           }
 
       - name: Restore
-        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config --no-cache --force
+        run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config --no-cache --force -m:1 -nodeReuse:false
 
       - name: Check for vulnerable dependencies
         shell: pwsh
@@ -78,12 +79,14 @@ jobs:
       - name: Build Release
         env:
           RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
-        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -p:Version="$RELEASE_VERSION"
+        run: dotnet build KeelMatrix.EfGuard.sln --configuration Release --no-restore -m:1 -nodeReuse:false -p:Version="$RELEASE_VERSION"
 
       - name: Test
-        run: dotnet test KeelMatrix.EfGuard.sln --configuration Release --no-build --no-restore
+        run: dotnet test KeelMatrix.EfGuard.sln --configuration Release --no-build --no-restore -m:1 -nodeReuse:false
 
       - name: Verify formatting and analyzers
+        # dotnet format rejects MSBuild's -m/-nodeReuse switches; the workflow-level
+        # MSBUILDDISABLENODEREUSE setting still isolates its MSBuild evaluation.
         run: dotnet format KeelMatrix.EfGuard.sln --verify-no-changes --no-restore
 
       - name: Pack candidate
@@ -91,7 +94,7 @@ jobs:
           RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
         run: >-
           dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj
-          --configuration Release --no-build --no-restore
+          --configuration Release --no-build --no-restore -m:1 -nodeReuse:false
           --include-symbols --p:SymbolPackageFormat=snupkg
           -p:Version="$RELEASE_VERSION"
           --output ./artifacts/packages
