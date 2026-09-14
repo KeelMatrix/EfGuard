@@ -8,11 +8,17 @@ $ErrorActionPreference = "Stop"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageDirectory = Join-Path $repositoryRoot "artifacts/packages"
 $validationRoot = Join-Path ([IO.Path]::GetTempPath()) ("efguard-validation-" + [Guid]::NewGuid().ToString("N"))
+$previousNodeReuse = $env:MSBUILDDISABLENODEREUSE
 $previousTelemetry = $env:KEELMATRIX_NO_TELEMETRY
+$env:MSBUILDDISABLENODEREUSE = "1"
 $env:KEELMATRIX_NO_TELEMETRY = "1"
 
 function Invoke-Dotnet([string[]] $Arguments) {
-    & dotnet @Arguments
+    $safeArguments = @($Arguments)
+    if ($Arguments.Count -gt 0 -and $Arguments[0] -in @("restore", "build", "test", "pack")) {
+        $safeArguments += @("-m:1", "-nodeReuse:false")
+    }
+    & dotnet @safeArguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
 }
 
@@ -63,6 +69,12 @@ try {
     Write-Output "Local validation passed with telemetry disabled, package contract validation, and isolated package consumer smoke."
 }
 finally {
+    if ($null -eq $previousNodeReuse) {
+        Remove-Item Env:MSBUILDDISABLENODEREUSE -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:MSBUILDDISABLENODEREUSE = $previousNodeReuse
+    }
     $env:KEELMATRIX_NO_TELEMETRY = $previousTelemetry
     if (Test-Path -LiteralPath $validationRoot) { Remove-Item -LiteralPath $validationRoot -Recurse -Force }
 }

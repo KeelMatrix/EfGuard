@@ -23,12 +23,23 @@ On Linux/macOS:
 The canonical individual commands are:
 
 ```powershell
-dotnet restore KeelMatrix.EfGuard.sln
-dotnet build KeelMatrix.EfGuard.sln -c Release --no-restore
-dotnet test KeelMatrix.EfGuard.sln -c Release --no-build
-dotnet format KeelMatrix.EfGuard.sln --verify-no-changes
-dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj -c Release --no-build
+$env:MSBUILDDISABLENODEREUSE = "1"
+dotnet restore KeelMatrix.EfGuard.sln -m:1 -nodeReuse:false
+dotnet build KeelMatrix.EfGuard.sln -c Release --no-restore -m:1 -nodeReuse:false
+dotnet test KeelMatrix.EfGuard.sln -c Release --no-build --no-restore -m:1 -nodeReuse:false
+dotnet format KeelMatrix.EfGuard.sln --verify-no-changes --no-restore
+dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj -c Release --no-build --no-restore -m:1 -nodeReuse:false
 ```
+
+### Reliable test path with Visual Studio open
+
+Visual Studio and command-line builds can share the per-user MSBuild node-reuse pool. Use the committed test entry point when Visual Studio is open or when a machine has stale MSBuild nodes:
+
+```powershell
+pwsh ./build/test.ps1 -Configuration Release
+```
+
+On Linux/macOS, run the same PowerShell script after restoring the repository's PowerShell prerequisite. The script restores, builds the full solution, and then runs the tests with `MSBUILDDISABLENODEREUSE=1`, `-m:1`, and `-nodeReuse:false`. The environment setting is inherited by EfGuard's worker-launched build processes, so the test fixture build churn cannot rejoin Visual Studio's node pool.
 
 ### Visual Studio restore and build
 
