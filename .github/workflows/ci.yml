@@ -150,9 +150,12 @@ jobs:
         run: |
           $reportPath = Join-Path $env:RUNNER_TEMP "efguard-$($env:FIXTURE_NAME).json"
           $errorPath = Join-Path $env:RUNNER_TEMP "efguard-$($env:FIXTURE_NAME).stderr"
+          $propertyPrefix = "-" + "p:"
+          $nodeReuseProperty = $propertyPrefix + "NodeReuse" + "=" + "false"
+          $maxCpuCountProperty = $propertyPrefix + "MaxCpuCount" + "=" + "1"
           $process = Start-Process -FilePath dotnet -ArgumentList @(
             "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
-            "--configuration", "Release", "--no-build", "--no-restore", "-m:1", "-nodeReuse:false", "--",
+            "--configuration", "Release", "--no-build", "--no-restore", $nodeReuseProperty, $maxCpuCountProperty, "--",
             "check", "--project", $env:FIXTURE_PROJECT, "--format", "json"
           ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
           $status = $process.ExitCode
@@ -253,9 +256,12 @@ jobs:
         run: |
           $reportPath = Join-Path $env:RUNNER_TEMP "efguard-sqlserver-engine.json"
           $errorPath = Join-Path $env:RUNNER_TEMP "efguard-sqlserver-engine.stderr"
+          $propertyPrefix = "-" + "p:"
+          $nodeReuseProperty = $propertyPrefix + "NodeReuse" + "=" + "false"
+          $maxCpuCountProperty = $propertyPrefix + "MaxCpuCount" + "=" + "1"
           $process = Start-Process -FilePath dotnet -ArgumentList @(
             "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
-            "--configuration", "Release", "--no-build", "--no-restore", "-m:1", "-nodeReuse:false", "--",
+            "--configuration", "Release", "--no-build", "--no-restore", $nodeReuseProperty, $maxCpuCountProperty, "--",
             "check", "--project", "fixtures/Ef9SqlServer/Ef9SqlServerFixture.csproj", "--format", "json"
           ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
           if ($process.ExitCode -notin @(0, 1)) {
@@ -349,9 +355,12 @@ jobs:
         run: |
           $reportPath = Join-Path $env:RUNNER_TEMP "efguard-postgresql-engine.json"
           $errorPath = Join-Path $env:RUNNER_TEMP "efguard-postgresql-engine.stderr"
+          $propertyPrefix = "-" + "p:"
+          $nodeReuseProperty = $propertyPrefix + "NodeReuse" + "=" + "false"
+          $maxCpuCountProperty = $propertyPrefix + "MaxCpuCount" + "=" + "1"
           $process = Start-Process -FilePath dotnet -ArgumentList @(
             "run", "--project", "src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj",
-            "--configuration", "Release", "--no-build", "--no-restore", "-m:1", "-nodeReuse:false", "--",
+            "--configuration", "Release", "--no-build", "--no-restore", $nodeReuseProperty, $maxCpuCountProperty, "--",
             "check", "--project", "fixtures/Ef9/Ef9Fixture.csproj", "--format", "json"
           ) -WorkingDirectory $PWD -RedirectStandardOutput $reportPath -RedirectStandardError $errorPath -NoNewWindow -Wait -PassThru
           if ($process.ExitCode -notin @(0, 1)) {
