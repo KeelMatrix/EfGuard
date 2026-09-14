@@ -19,6 +19,7 @@ lcov*.info
 *.suo
 *.csproj.user
 *.userprefs
+**/Properties/launchSettings.json
 *.nupkg
 *.snupkg
 *.zip
