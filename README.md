@@ -8,6 +8,29 @@ EfGuard is a local .NET tool that analyzes EF Core migrations without connecting
 
 This is the repository and developer-facing README. The standalone NuGet package README is [src/KeelMatrix.EfGuard/README.md](src/KeelMatrix.EfGuard/README.md); it is the file packed as `README.md` at the package root. Keep package installation, focused quick usage, limitations, and the versioned release install example in that project-local document so the NuGet experience does not silently diverge from this repository documentation.
 
+## Install
+
+```bash
+dotnet tool install --global KeelMatrix.EfGuard
+efguard --help
+```
+
+The [project-local package README](src/KeelMatrix.EfGuard/README.md) is the canonical NuGet-facing document for the versioned release install command and package-specific limitations.
+
+## Quick Start
+
+From a straightforward single-project, single-context repository:
+
+```bash
+efguard check
+```
+
+For a rolling-deployment comparison with the previous application model:
+
+```bash
+efguard check --baseline origin/main
+```
+
 ## Design-time discovery
 
 With `--startup-project`, EfGuard follows the normal EF Core design-time startup path in a bounded child process: it resolves the startup host through `BuildWebHost`, `CreateWebHostBuilder`, `CreateHostBuilder`, or the startup entry point, then resolves the selected `DbContext` (or `IDbContextFactory<TContext>`) from the startup application's scoped services. An `IDesignTimeDbContextFactory<TContext>` and then a parameterless constructor are fallbacks when startup services do not provide the context. Keep all design-time startup code and factories free of production connections and side effects. The worker response file is limited to 4 MiB (4,194,304 bytes); an oversized response is an untrustworthy extraction failure and returns exit code `2`.
