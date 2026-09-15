@@ -228,6 +228,17 @@ Future changes go here.
         RepositoryRoot = $repositoryRoot
     } $false "install example version mismatch is rejected"
 
+    $missingInstallExamplePath = Join-Path $fixtureRoot "missing-install-example.md"
+    Write-Fixture $missingInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard`n"
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($missingInstallExamplePath)
+        RepositoryRoot = $repositoryRoot
+    } $false "install example without a version is rejected"
+
     $equalsInstallMismatchPath = Join-Path $fixtureRoot "equals-install-mismatch.md"
     Write-Fixture $equalsInstallMismatchPath "dotnet tool install --global KeelMatrix.EfGuard --version=0.2.0`n"
     Invoke-Contract @{
@@ -335,12 +346,13 @@ dotnet tool install --global KeelMatrix.EfGuard `
 - Exact commit fixture.
 "@
     Write-Fixture (Join-Path $exactCommitRoot "CHANGELOG.md") $exactCommitChangelog
-    Write-Fixture (Join-Path $exactCommitRoot "README.md") "dotnet tool install --global KeelMatrix.EfGuard --version 1.2.3`n"
+    Write-Fixture (Join-Path $exactCommitRoot "README.md") "Repository README.`n"
+    Write-Fixture (Join-Path $exactCommitRoot "src/KeelMatrix.EfGuard/README.md") "dotnet tool install --global KeelMatrix.EfGuard --version 1.2.3`n"
     Write-Fixture (Join-Path $exactCommitRoot "Directory.Build.props") "<Project><PropertyGroup><Version>1.2.3</Version></PropertyGroup></Project>`n"
     & git -C $exactCommitRoot init -b main | Out-Null
     & git -C $exactCommitRoot config user.name "KeelMatrix" | Out-Null
     & git -C $exactCommitRoot config user.email "engineering@keelmatrix.dev" | Out-Null
-    & git -C $exactCommitRoot add CHANGELOG.md README.md Directory.Build.props | Out-Null
+    & git -C $exactCommitRoot add CHANGELOG.md README.md src/KeelMatrix.EfGuard/README.md Directory.Build.props | Out-Null
     & git -C $exactCommitRoot commit -m "test exact changelog commit" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Could not commit the exact-commit fixture." }
     $exactCommit = (& git -C $exactCommitRoot rev-parse --verify HEAD).Trim()

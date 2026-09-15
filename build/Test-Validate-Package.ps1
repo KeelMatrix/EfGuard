@@ -61,6 +61,63 @@ try {
     $archive = [IO.Compression.ZipFile]::Open($negativePackage, [IO.Compression.ZipArchiveMode]::Update)
     try {
         $archive.GetEntry("README.md").Delete()
+    }
+    finally { $archive.Dispose() }
+
+    $failedAsExpected = $false
+    try { & $validator -PackageDirectory $temporaryRoot -ExpectedVersion $ExpectedVersion -ExpectedCommit $ExpectedCommit }
+    catch {
+        $failedAsExpected = $_.Exception.Message -match "archive entry allowlist"
+        if (-not $failedAsExpected) {
+            throw
+        }
+    }
+
+    if (-not $failedAsExpected) {
+        throw "The package validator accepted a package with a missing README."
+    }
+
+    Write-Output "Negative package validation passed: a missing README was rejected."
+
+    Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+    New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+    $negativePackage = Join-Path $temporaryRoot "KeelMatrix.EfGuard.$ExpectedVersion.nupkg"
+    Copy-Item -LiteralPath (Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.nupkg") -Destination $negativePackage
+    Copy-Item -LiteralPath (Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.snupkg") -Destination $temporaryRoot
+    $archive = [IO.Compression.ZipFile]::Open($negativePackage, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $archive.GetEntry("README.md").Delete()
+        $entry = $archive.CreateEntry("README.md")
+        $rootReadmeBytes = [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot "..\README.md"))
+        $stream = $entry.Open()
+        try { $stream.Write($rootReadmeBytes, 0, $rootReadmeBytes.Length) }
+        finally { $stream.Dispose() }
+    }
+    finally { $archive.Dispose() }
+
+    $failedAsExpected = $false
+    try { & $validator -PackageDirectory $temporaryRoot -ExpectedVersion $ExpectedVersion -ExpectedCommit $ExpectedCommit }
+    catch {
+        $failedAsExpected = $_.Exception.Message -match "repository-root README"
+        if (-not $failedAsExpected) {
+            throw
+        }
+    }
+
+    if (-not $failedAsExpected) {
+        throw "The package validator accepted the repository-root README as the package README."
+    }
+
+    Write-Output "Negative package validation passed: the repository-root README was rejected as the package README."
+
+    Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+    New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+    $negativePackage = Join-Path $temporaryRoot "KeelMatrix.EfGuard.$ExpectedVersion.nupkg"
+    Copy-Item -LiteralPath (Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.nupkg") -Destination $negativePackage
+    Copy-Item -LiteralPath (Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.snupkg") -Destination $temporaryRoot
+    $archive = [IO.Compression.ZipFile]::Open($negativePackage, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $archive.GetEntry("README.md").Delete()
         $entry = $archive.CreateEntry("README.md")
         $writer = [IO.StreamWriter]::new($entry.Open())
         try { $writer.WriteLine("[Unresolved documentation](docs/missing.md)") }

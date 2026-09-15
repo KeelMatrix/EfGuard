@@ -50,6 +50,34 @@ function Read-EntryBytes([System.IO.Compression.ZipArchive] $Archive, [string] $
     finally { $stream.Dispose() }
 }
 
+function Read-FileBytes([string] $Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Fail "required repository file '$Path' is missing."
+    }
+
+    return [IO.File]::ReadAllBytes($Path)
+}
+
+function Test-ByteEqual([byte[]] $Left, [byte[]] $Right) {
+    if ($null -eq $Left -or $null -eq $Right -or $Left.Length -ne $Right.Length) {
+        return $false
+    }
+
+    for ($index = 0; $index -lt $Left.Length; $index++) {
+        if ($Left[$index] -ne $Right[$index]) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Assert-ByteEqual([byte[]] $Expected, [byte[]] $Actual, [string] $Name) {
+    if (-not (Test-ByteEqual $Expected $Actual)) {
+        Fail "$Name does not match the expected bytes."
+    }
+}
+
 function Read-BigEndianUInt32([byte[]] $Bytes, [int] $Offset) {
     return ([uint32]$Bytes[$Offset] -shl 24) -bor ([uint32]$Bytes[$Offset + 1] -shl 16) -bor ([uint32]$Bytes[$Offset + 2] -shl 8) -bor $Bytes[$Offset + 3]
 }
@@ -120,13 +148,14 @@ function Invoke-Dotnet([string[]] $Arguments) {
     }
 }
 
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageDirectory = [IO.Path]::GetFullPath($PackageDirectory)
 if (-not (Test-Path -LiteralPath $packageDirectory -PathType Container)) {
     Fail "package directory '$packageDirectory' does not exist."
 }
 
 if ([string]::IsNullOrWhiteSpace($ExpectedCommit)) {
-    $ExpectedCommit = (& git rev-parse HEAD).Trim()
+    $ExpectedCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { Fail "could not determine the expected repository commit." }
 }
 
@@ -170,7 +199,16 @@ try {
         "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.dll",
         "tools/net8.0/any/net9.0/KeelMatrix.EfGuard.Worker.runtimeconfig.json"
     ) "$(Split-Path -Leaf $nupkgPath)"
+    $packedReadmeBytes = Read-EntryBytes $nupkg "README.md"
+    $projectReadmePath = Join-Path $repositoryRoot "src/KeelMatrix.EfGuard/README.md"
+    $rootReadmePath = Join-Path $repositoryRoot "README.md"
+    $projectReadmeBytes = Read-FileBytes $projectReadmePath
+    $rootReadmeBytes = Read-FileBytes $rootReadmePath
+    if (Test-ByteEqual $packedReadmeBytes $rootReadmeBytes) {
+        Fail "packed README must not be the repository-root README; it must be the project-local package README '$projectReadmePath'."
+    }
     Assert-PackedReadmeLinks $nupkg $entryNames
+    Assert-ByteEqual $projectReadmeBytes $packedReadmeBytes "packed README and project-local package README"
 
     foreach ($entryName in $entryNames | Where-Object { $_ -match '(?i)\.(?:nuspec|md|txt|json|xml|props|targets|cs|csproj)$' }) {
         $content = Read-EntryText $nupkg $entryName

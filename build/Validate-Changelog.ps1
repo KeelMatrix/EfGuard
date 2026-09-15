@@ -11,7 +11,7 @@ param(
     [string] $ExpectedPackageVersion,
     [string] $ExpectedDependencyVersion,
     [string] $RepositoryRoot,
-    [string[]] $InstallExamplePath = @("README.md"),
+    [string[]] $InstallExamplePath = @("src/KeelMatrix.EfGuard/README.md"),
     [switch] $RequireChangelogInCommit
 )
 
@@ -276,6 +276,7 @@ foreach ($examplePath in @($InstallExamplePath)) {
     }
 
     $exampleLines = @(Get-Content -LiteralPath $exampleFullPath -Encoding UTF8)
+    $foundVersionedInstallExample = $false
     for ($lineIndex = 0; $lineIndex -lt $exampleLines.Count; $lineIndex++) {
         $installText = $exampleLines[$lineIndex]
         if ($installText -notmatch '(?i)\bdotnet\s+tool\s+install\b') {
@@ -302,6 +303,11 @@ foreach ($examplePath in @($InstallExamplePath)) {
         }
 
         $installVersionMatches = @([regex]::Matches($installText, $installVersionPattern))
+        if ($installVersionMatches.Count -eq 0) {
+            continue
+        }
+
+        $foundVersionedInstallExample = $true
         foreach ($installVersionMatch in $installVersionMatches) {
             $installVersion = $installVersionMatch.Groups["version"].Value
             if ($installVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
@@ -311,6 +317,10 @@ foreach ($examplePath in @($InstallExamplePath)) {
                 Fail "install example '$examplePath' version '$installVersion' does not match release version '$ExpectedVersion'."
             }
         }
+    }
+
+    if (-not $foundVersionedInstallExample) {
+        Fail "install-example file '$examplePath' does not contain a versioned KeelMatrix.EfGuard install command."
     }
 }
 
