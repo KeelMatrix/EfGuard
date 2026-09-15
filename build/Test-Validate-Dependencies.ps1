@@ -35,12 +35,17 @@ function Normalize-LineEndings([string] $Value) {
     return $Value.Replace("`r`n", "`n").Replace("`r", "`n")
 }
 
+function Normalize-AssertionWhitespace([string] $Value) {
+    if ($null -eq $Value) { return $null }
+    return (($Value -replace "\|", " " -replace "\s+", " ").Trim())
+}
+
 function Assert-FailedResult([string] $Name, [psobject] $Result, [string] $ExpectedMessage) {
     if ($Result.ExitCode -eq 0) {
         throw "$Name unexpectedly passed. Output: $($Result.Output)"
     }
-    $normalizedOutput = Normalize-LineEndings $Result.Output
-    $normalizedExpectedMessage = Normalize-LineEndings $ExpectedMessage
+    $normalizedOutput = Normalize-AssertionWhitespace (Normalize-LineEndings $Result.Output)
+    $normalizedExpectedMessage = Normalize-AssertionWhitespace (Normalize-LineEndings $ExpectedMessage)
     if ($normalizedOutput -notmatch [regex]::Escape($normalizedExpectedMessage)) {
         throw "$Name failed for the wrong reason. Expected '$ExpectedMessage'. Output: $($Result.Output)"
     }
