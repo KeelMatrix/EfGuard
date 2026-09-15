@@ -31,6 +31,18 @@ dotnet format KeelMatrix.EfGuard.sln --verify-no-changes --no-restore
 dotnet pack src/KeelMatrix.EfGuard/KeelMatrix.EfGuard.csproj -c Release --no-build --no-restore -m:1 -nodeReuse:false
 ```
 
+The pinned release install command in `src/KeelMatrix.EfGuard/README.md` is the repository's single canonical install example. Release-facing documents must link to it rather than repeat an unpinned or competing tool-install command. Local-feed and `--add-source` commands used by validation scripts are operational test commands, not release examples; `build/Validate-Changelog.ps1` enforces this distinction.
+
+### MSB4166 node isolation
+
+`MSB4166` can occur when a command-line build reuses a stale or concurrently owned MSBuild node, including one left by an open Visual Studio session. The reliable diagnostic and test path is:
+
+```powershell
+pwsh ./build/test.ps1 -Configuration Release
+```
+
+That entry point sets `MSBUILDDISABLENODEREUSE=1` and passes `-m:1 -nodeReuse:false` to each restore/build/test invocation, isolating fixture builds from the shared node pool.
+
 ### Reliable test path with Visual Studio open
 
 Visual Studio and command-line builds can share the per-user MSBuild node-reuse pool. Use the committed test entry point when Visual Studio is open or when a machine has stale MSBuild nodes:

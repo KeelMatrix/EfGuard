@@ -10,12 +10,7 @@ This is the repository and developer-facing README. The standalone NuGet package
 
 ## Install
 
-```bash
-dotnet tool install --global KeelMatrix.EfGuard
-efguard --help
-```
-
-The [project-local package README](src/KeelMatrix.EfGuard/README.md) is the canonical NuGet-facing document for the versioned release install command and package-specific limitations.
+The [project-local package README](src/KeelMatrix.EfGuard/README.md) contains the single canonical, pinned release install command and package-specific limitations. This repository README deliberately does not repeat an install command.
 
 ## Quick Start
 
@@ -167,14 +162,7 @@ The compatibility fixture matrix exercises each supported EF/provider family:
 
 ## CI
 
-Install from the configured package source, then invoke the CLI directly:
-
-```bash
-dotnet tool install --global KeelMatrix.EfGuard --add-source https://api.nuget.org/v3/index.json
-efguard check --baseline origin/main --format json > efguard-report.json
-status=$?
-test $status -eq 0
-```
+Install the package using the canonical command in the [project-local package README](src/KeelMatrix.EfGuard/README.md), then invoke the CLI directly in CI. Local-feed and `--add-source` commands are validation-only operational details kept in build scripts; they are not release install examples.
 
 On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. A gating job should fail for either non-zero exit code.
 

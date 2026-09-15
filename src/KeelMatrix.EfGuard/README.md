@@ -4,13 +4,7 @@ EfGuard is a local .NET tool for .NET teams using EF Core migrations in CI/CD. I
 
 ## Install
 
-Install the latest available package:
-
-```bash
-dotnet tool install --global KeelMatrix.EfGuard
-```
-
-Install the `0.1.0` release explicitly:
+The pinned `0.1.0` command below is the single canonical release install example. Other release-facing documentation links here instead of repeating an unpinned or competing install command.
 
 ```bash
 dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0

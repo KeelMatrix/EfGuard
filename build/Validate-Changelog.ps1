@@ -12,6 +12,7 @@ param(
     [string] $ExpectedDependencyVersion,
     [string] $RepositoryRoot,
     [string[]] $InstallExamplePath = @("src/KeelMatrix.EfGuard/README.md"),
+    [string[]] $ReleaseFacingDocumentationPath = @("README.md"),
     [switch] $RequireChangelogInCommit
 )
 
@@ -269,27 +270,23 @@ foreach ($dependencyId in @($dependencyVersions.Keys)) {
 }
 
 $installVersionPattern = '--version(?:\s+|=)(?:"(?<version>[^"]+)"|''(?<version>[^'']+)''|(?<version>[^\s]+))'
-foreach ($examplePath in @($InstallExamplePath)) {
-    $exampleFullPath = Resolve-RepositoryPath $examplePath
-    if (-not (Test-Path -LiteralPath $exampleFullPath -PathType Leaf)) {
-        Fail "install-example file '$exampleFullPath' does not exist."
-    }
-
-    $exampleLines = @(Get-Content -LiteralPath $exampleFullPath -Encoding UTF8)
-    $foundVersionedInstallExample = $false
-    for ($lineIndex = 0; $lineIndex -lt $exampleLines.Count; $lineIndex++) {
-        $installText = $exampleLines[$lineIndex]
+function Get-EfGuardInstallCommands([string] $Path) {
+    $lines = @(Get-Content -LiteralPath $Path -Encoding UTF8)
+    $commands = @()
+    for ($lineIndex = 0; $lineIndex -lt $lines.Count; $lineIndex++) {
+        $installText = $lines[$lineIndex]
         if ($installText -notmatch '(?i)\bdotnet\s+tool\s+install\b') {
             continue
         }
 
+        $firstLineIndex = $lineIndex
         $lastLineIndex = $lineIndex
-        while ($lastLineIndex + 1 -lt $exampleLines.Count) {
-            $currentLine = $exampleLines[$lastLineIndex].TrimEnd()
-            $nextLine = $exampleLines[$lastLineIndex + 1]
+        while ($lastLineIndex + 1 -lt $lines.Count) {
+            $currentLine = $lines[$lastLineIndex].TrimEnd()
+            $nextLine = $lines[$lastLineIndex + 1]
             $hasLineContinuation = $currentLine.EndsWith('\') -or $currentLine.EndsWith('`')
-            $hasVersionContinuation = $nextLine -match '^\s*--version(?:\s+|=|$)'
-            if (-not $hasLineContinuation -and -not $hasVersionContinuation) {
+            $hasOptionContinuation = $nextLine -match '^\s+--(?:version|add-source|configfile|tool-path|ignore-failed-sources)\b'
+            if (-not $hasLineContinuation -and -not $hasOptionContinuation) {
                 break
             }
 
@@ -302,25 +299,53 @@ foreach ($examplePath in @($InstallExamplePath)) {
             continue
         }
 
-        $installVersionMatches = @([regex]::Matches($installText, $installVersionPattern))
-        if ($installVersionMatches.Count -eq 0) {
-            continue
-        }
-
-        $foundVersionedInstallExample = $true
-        foreach ($installVersionMatch in $installVersionMatches) {
-            $installVersion = $installVersionMatch.Groups["version"].Value
-            if ($installVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
-                Fail "install example '$examplePath' contains unverifiable EfGuard version '$installVersion'."
-            }
-            if ($installVersion -ne $ExpectedVersion) {
-                Fail "install example '$examplePath' version '$installVersion' does not match release version '$ExpectedVersion'."
-            }
+        $commands += [pscustomobject]@{
+            Line = $firstLineIndex + 1
+            Text = $installText
+            VersionMatches = @([regex]::Matches($installText, $installVersionPattern))
         }
     }
 
-    if (-not $foundVersionedInstallExample) {
-        Fail "install-example file '$examplePath' does not contain a versioned KeelMatrix.EfGuard install command."
+    return $commands
+}
+
+foreach ($examplePath in @($InstallExamplePath)) {
+    $exampleFullPath = Resolve-RepositoryPath $examplePath
+    if (-not (Test-Path -LiteralPath $exampleFullPath -PathType Leaf)) {
+        Fail "install-example file '$exampleFullPath' does not exist."
+    }
+
+    $installCommands = @(Get-EfGuardInstallCommands $exampleFullPath)
+    if ($installCommands.Count -ne 1) {
+        Fail "canonical install-example file '$examplePath' must contain exactly one KeelMatrix.EfGuard install command; found $($installCommands.Count)."
+    }
+
+    $installCommand = $installCommands[0]
+    if ($installCommand.VersionMatches.Count -eq 0) {
+        Fail "canonical install example '$examplePath' must pin KeelMatrix.EfGuard with --version."
+    }
+    if ($installCommand.VersionMatches.Count -gt 1) {
+        Fail "canonical install example '$examplePath' contains more than one --version option."
+    }
+
+    $installVersion = $installCommand.VersionMatches[0].Groups["version"].Value
+    if ($installVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
+        Fail "install example '$examplePath' contains unverifiable EfGuard version '$installVersion'."
+    }
+    if ($installVersion -ne $ExpectedVersion) {
+        Fail "install example '$examplePath' version '$installVersion' does not match release version '$ExpectedVersion'."
+    }
+}
+
+foreach ($releasePath in @($ReleaseFacingDocumentationPath)) {
+    $releaseFullPath = Resolve-RepositoryPath $releasePath
+    if (-not (Test-Path -LiteralPath $releaseFullPath -PathType Leaf)) {
+        Fail "release-facing documentation file '$releaseFullPath' does not exist."
+    }
+
+    $releaseCommands = @(Get-EfGuardInstallCommands $releaseFullPath)
+    if ($releaseCommands.Count -gt 0) {
+        Fail "release-facing document '$releasePath' contains a competing KeelMatrix.EfGuard install command; link to the canonical pinned example instead."
     }
 }
 

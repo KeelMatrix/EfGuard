@@ -239,6 +239,34 @@ Future changes go here.
         RepositoryRoot = $repositoryRoot
     } $false "install example without a version is rejected"
 
+    $duplicateInstallExamplePath = Join-Path $fixtureRoot "duplicate-install-example.md"
+    Write-Fixture $duplicateInstallExamplePath @'
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($duplicateInstallExamplePath)
+        RepositoryRoot = $repositoryRoot
+    } $false "duplicate identical versioned install examples are rejected"
+
+    $divergentInstallExamplePath = Join-Path $fixtureRoot "divergent-install-example.md"
+    Write-Fixture $divergentInstallExamplePath @'
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.2.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($divergentInstallExamplePath)
+        RepositoryRoot = $repositoryRoot
+    } $false "divergent versioned install examples are rejected"
+
     $equalsInstallMismatchPath = Join-Path $fixtureRoot "equals-install-mismatch.md"
     Write-Fixture $equalsInstallMismatchPath "dotnet tool install --global KeelMatrix.EfGuard --version=0.2.0`n"
     Invoke-Contract @{
@@ -305,6 +333,52 @@ dotnet tool install --global KeelMatrix.EfGuard \
         InstallExamplePath = @($equalsMultilineInstallMismatchPath)
         RepositoryRoot = $repositoryRoot
     } $false "equals-form continuation install example version mismatch is rejected"
+
+    $multilineDuplicateInstallPath = Join-Path $fixtureRoot "multiline-duplicate-install-example.md"
+    Write-Fixture $multilineDuplicateInstallPath @'
+dotnet tool install --global KeelMatrix.EfGuard `
+  --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard `
+  --version 0.1.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($multilineDuplicateInstallPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "duplicate multiline install examples are rejected"
+
+    $canonicalInstallExamplePath = Join-Path $fixtureRoot "canonical-install-example.md"
+    Write-Fixture $canonicalInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0`n"
+    $cleanReleaseFacingPath = Join-Path $fixtureRoot "clean-release-facing.md"
+    Write-Fixture $cleanReleaseFacingPath "See the canonical package README for installation.`n"
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($cleanReleaseFacingPath)
+        RepositoryRoot = $repositoryRoot
+    } $true "one pinned canonical install example and a linking release document pass"
+
+    $competingUnpinnedPath = Join-Path $fixtureRoot "competing-unpinned-release-document.md"
+    Write-Fixture $competingUnpinnedPath @'
+Install the tool in CI:
+
+dotnet tool install --global KeelMatrix.EfGuard
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($competingUnpinnedPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "competing unpinned release-facing install example is rejected"
 
     $multilineInstallConsistentPath = Join-Path $fixtureRoot "multiline-install-consistent.md"
     Write-Fixture $multilineInstallConsistentPath @'

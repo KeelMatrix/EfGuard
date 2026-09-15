@@ -22,10 +22,33 @@ function Invoke-Dotnet([string[]] $Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "dotnet $($Arguments -join ' ') failed with exit code $LASTEXITCODE." }
 }
 
+function Reset-PackageDirectory([string] $Path) {
+    if (-not (Test-Path -LiteralPath $Path)) {
+        New-Item -ItemType Directory -Path $Path -Force | Out-Null
+        return
+    }
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            New-Item -ItemType Directory -Path $Path -Force | Out-Null
+            return
+        }
+        catch {
+            $lastError = $_
+            if ($attempt -lt 3) { Start-Sleep -Milliseconds 250 }
+        }
+    }
+
+    $remainingFiles = @(Get-ChildItem -LiteralPath $Path -Recurse -Force -File -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+    $lockedItem = if ($remainingFiles.Count -gt 0) { $remainingFiles[0] } else { $Path }
+    throw "Could not clear package output '$Path' after 3 attempts. A file may be locked, including '$lockedItem'. Close the process holding it and rerun validation. Last error: $($lastError.Exception.Message)"
+}
+
 try {
     New-Item -ItemType Directory -Path $validationRoot -Force | Out-Null
-    if (Test-Path -LiteralPath $packageDirectory) { Remove-Item -LiteralPath $packageDirectory -Recurse -Force }
-    New-Item -ItemType Directory -Path $packageDirectory -Force | Out-Null
+    Reset-PackageDirectory $packageDirectory
 
     & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Changelog.ps1")
     if ($LASTEXITCODE -ne 0) { throw "changelog contract regression coverage failed." }
