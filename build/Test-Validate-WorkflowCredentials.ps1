@@ -809,10 +809,11 @@ jobs:
     steps:
       - run: ./build/file-cap.ps1
 '@
+    $reachableFileCap = 128
     $capFiles = @{
-        "build/file-cap.ps1" = (1..65 | ForEach-Object { "Write-Output ./fixtures/reachable-$_.txt" }) -join "`n"
+        "build/file-cap.ps1" = (1..($reachableFileCap + 1) | ForEach-Object { "Write-Output ./fixtures/reachable-$_.txt" }) -join "`n"
     }
-    for ($index = 1; $index -le 65; $index++) {
+    for ($index = 1; $index -le ($reachableFileCap + 1); $index++) {
         $capFiles["fixtures/reachable-$index.txt"] = "safe-$index"
     }
     Write-Files $capFiles

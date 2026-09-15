@@ -55,7 +55,9 @@ except Exception as error:  # pragma: no cover - exercised by the wrapper
 
 
 MAX_REACHABLE_DEPTH = 3
-MAX_REACHABLE_FILES = 64
+# The repository's tracked workflow closure includes the fixture project graph.
+# Keep the inspection bounded while leaving room for that intentional graph.
+MAX_REACHABLE_FILES = 128
 
 SENSITIVE_NAME = re.compile(
     r"(?i)(?:password|passwd|pwd|api[_-]?key|secret|token|private[_-]?key)"
