@@ -30,11 +30,11 @@ function Invoke-Contract([hashtable] $Arguments, [bool] $ShouldPass, [string] $C
         throw "$CaseName unexpectedly passed."
     }
     if ($ShouldPass) {
-        Write-Output "Changelog contract case passed: $CaseName."
+        Write-Output "Changelog contract case passed: $CaseName (raw exit $exitCode)."
     }
     else {
         $details = (@($output) | ForEach-Object { $_.ToString().Trim() } | Where-Object { $_ }) -join " "
-        Write-Output "Changelog contract case failed closed as expected: $CaseName. $details"
+        Write-Output "Changelog contract case failed closed as expected: $CaseName (raw exit $exitCode). $details"
     }
 }
 
@@ -179,6 +179,76 @@ Future changes go here.
         ChangelogPath = $finalizedPath
         RepositoryRoot = $repositoryRoot
     } $true "finalized target with consistent metadata passes"
+
+    $initialFixedPath = Join-Path $fixtureRoot "initial-fixed.md"
+    Write-Fixture $initialFixedPath @"
+# Changelog
+
+## [Unreleased]
+
+## [0.1.0] - $releaseDate
+
+### Added
+
+- Initial release capability.
+
+### Fixed
+
+- Pre-release remediation wording.
+"@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $initialFixedPath
+        RepositoryRoot = $repositoryRoot
+    } $false "finalized initial release with Fixed content is rejected"
+
+    $initialMarkersPath = Join-Path $fixtureRoot "initial-remediation-markers.md"
+    Write-Fixture $initialMarkersPath @"
+# Changelog
+
+## [Unreleased]
+
+## [0.1.0] - $releaseDate
+
+### Added
+
+- The tool now provides the capability.
+- The behavior is no longer limited to the old path.
+- The previously used implementation detail is not part of the product.
+"@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $initialMarkersPath
+        RepositoryRoot = $repositoryRoot
+    } $false "finalized initial release remediation markers are rejected"
+
+    $laterReleaseFixedPath = Join-Path $fixtureRoot "later-release-fixed.md"
+    Write-Fixture $laterReleaseFixedPath @"
+# Changelog
+
+## [0.0.1] - $releaseDate
+
+### Added
+
+- Earlier published release fixture.
+
+## [0.1.0] - $releaseDate
+
+### Fixed
+
+- A truthful correction relative to the earlier published release.
+"@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $laterReleaseFixedPath
+        RepositoryRoot = $repositoryRoot
+    } $true "later release with truthful Fixed content is outside first-release backstop"
 
     $mismatchPath = Join-Path $fixtureRoot "mismatch.md"
     Write-Fixture $mismatchPath @"

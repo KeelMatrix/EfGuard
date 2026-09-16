@@ -179,6 +179,70 @@ if ($releaseDate.Date -gt [DateTime]::UtcNow.Date) {
     Fail "release date '$dateText' is later than the current UTC date."
 }
 
+# The lowest semantic-versioned level-two entry is the initial public release.
+# This narrow automated backstop applies only to that entry: it enforces the
+# first-release Added-only shape and catches obvious remediation-history
+# wording, while the required human editorial review remains authoritative.
+$targetSectionEndLine = $changelogLines.Count + 1
+$nextReleaseHeading = @($headingRecords |
+    Where-Object {
+        $_.Line -gt $targetHeading.Line -and
+        $_.Level -le $targetHeading.Level
+    } |
+    Sort-Object Line |
+    Select-Object -First 1)
+if ($nextReleaseHeading.Count -gt 0) {
+    $targetSectionEndLine = $nextReleaseHeading[0].Line
+}
+
+$versionedReleaseHeadings = @($headingRecords |
+    Where-Object { $_.Level -eq 2 } |
+    ForEach-Object {
+        $versionMatch = [regex]::Match($_.Text, '\[(?<version>\d+\.\d+\.\d+)\]')
+        if ($versionMatch.Success) {
+            [pscustomobject]@{
+                Heading = $_
+                Version = [Version]::Parse($versionMatch.Groups["version"].Value)
+            }
+        }
+    })
+$targetVersion = [Version]::Parse($ExpectedVersion)
+$earlierReleaseCount = @($versionedReleaseHeadings | Where-Object { $_.Version -lt $targetVersion }).Count
+$isInitialPublicRelease = $earlierReleaseCount -eq 0
+
+if ($isInitialPublicRelease) {
+    $entryCategoryHeadings = @($headingRecords |
+        Where-Object {
+            $_.Line -gt $targetHeading.Line -and
+            $_.Line -lt $targetSectionEndLine -and
+            $_.Level -eq ($targetHeading.Level + 1)
+        } |
+        Sort-Object Line)
+    $nonAddedCategories = @($entryCategoryHeadings | Where-Object { $_.Text -notmatch '(?i)^Added$' })
+    if ($entryCategoryHeadings.Count -eq 0) {
+        Fail "initial public release '$ExpectedVersion' must contain an Added section and no other release categories."
+    }
+    if ($entryCategoryHeadings.Count -ne 1 -or $nonAddedCategories.Count -gt 0) {
+        $categories = @($entryCategoryHeadings | ForEach-Object { "'$($_.Text)' on line $($_.Line)" }) -join ', '
+        Fail "initial public release '$ExpectedVersion' must contain only one Added section; found $categories."
+    }
+
+    $remediationMarkerPattern = '(?i)(?<![A-Za-z])(?:now|no[ \t]+longer|previously|formerly|used[ \t]+to|fixed|fixes|corrected|resolved|addressed|this[ \t]+removes|this[ \t]+fixes|changed[ \t]+from)(?![A-Za-z])'
+    $remediationMarkers = @()
+    for ($lineIndex = $targetHeading.Line - 1; $lineIndex -lt ($targetSectionEndLine - 1); $lineIndex++) {
+        foreach ($markerMatch in @([regex]::Matches($changelogLines[$lineIndex], $remediationMarkerPattern))) {
+            $remediationMarkers += [pscustomobject]@{
+                Marker = $markerMatch.Value
+                Line = $lineIndex + 1
+            }
+        }
+    }
+    if ($remediationMarkers.Count -gt 0) {
+        $markerSummary = @($remediationMarkers | ForEach-Object { "'$($_.Marker)' on line $($_.Line)" } | Select-Object -Unique) -join ', '
+        Fail "initial public release '$ExpectedVersion' contains remediation-history marker(s): $markerSummary."
+    }
+}
+
 $versionDeclarations = @()
 $versionFiles = @()
 $buildPropsPath = Join-Path $script:RepositoryRoot "Directory.Build.props"
