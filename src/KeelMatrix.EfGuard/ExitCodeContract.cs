@@ -8,11 +8,13 @@ internal static class ExitCodeContract
 
     private const string CleanOutcome = "no configured blocking or unverified diagnostic";
     private const string FindingsOutcome = "a blocking or unverified diagnostic";
-    private const string UntrustworthyOutcome = "analysis could not complete trustworthily because of configuration, extraction, build, provider, baseline, or internal error";
+    private const string UntrustworthyOutcome = "analysis could not complete trustworthily";
+    private const string UntrustworthyFailureReasons = "configuration, extraction, build, provider, baseline, or internal error";
+    private const string ChangelogUntrustworthyOutcome = "analysis cannot complete trustworthily";
 
     private const string CleanDescription = $"trustworthy analysis completed with {CleanOutcome}";
     private const string FindingsDescription = $"trustworthy analysis completed with {FindingsOutcome}";
-    private const string UntrustworthyDescription = UntrustworthyOutcome;
+    private const string UntrustworthyDescription = $"{UntrustworthyOutcome} because of {UntrustworthyFailureReasons}";
 
     internal static string HelpText => string.Join(Environment.NewLine,
     [
@@ -32,6 +34,6 @@ internal static class ExitCodeContract
 
     internal static string ChangelogSection => string.Join(Environment.NewLine,
     [
-        $"- Console reports render the reason, affected state, risk dimensions, provider evidence, remediation guidance, and uncertainty; versioned JSON reports retain the same stable diagnostic contract and exit codes `{Clean}` ({CleanOutcome}), `{Findings}` ({FindingsOutcome}), and `{Untrustworthy}` ({UntrustworthyOutcome})."
+        $"- Console and versioned JSON reports provide reasons, affected states, risk dimensions, provider evidence, remediation guidance, uncertainty, and stable exit codes: `{Clean}` for {CleanOutcome}, `{Findings}` for {FindingsOutcome}, and `{Untrustworthy}` when {ChangelogUntrustworthyOutcome}."
     ]);
 }
