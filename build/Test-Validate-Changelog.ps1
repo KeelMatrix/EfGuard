@@ -239,8 +239,16 @@ Future changes go here.
         RepositoryRoot = $repositoryRoot
     } $false "install example without a version is rejected"
 
-    $duplicateInstallExamplePath = Join-Path $fixtureRoot "duplicate-install-example.md"
-    Write-Fixture $duplicateInstallExamplePath @'
+    $canonicalInstallExamplePath = Join-Path $fixtureRoot "canonical-install-example.md"
+    Write-Fixture $canonicalInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0`n"
+    $duplicateCanonicalInstallExamplePath = Join-Path $fixtureRoot "duplicate-canonical-install-example.md"
+    Write-Fixture $duplicateCanonicalInstallExamplePath @'
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+'@
+
+    $duplicateReleaseFacingPath = Join-Path $fixtureRoot "duplicate-release-facing-install-example.md"
+    Write-Fixture $duplicateReleaseFacingPath @'
 dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
 dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
 '@
@@ -249,9 +257,20 @@ dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
         ExpectedPackageVersion = "0.1.0"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
-        InstallExamplePath = @($duplicateInstallExamplePath)
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($duplicateReleaseFacingPath)
         RepositoryRoot = $repositoryRoot
-    } $false "duplicate identical versioned install examples are rejected"
+    } $true "duplicate identical versioned release-facing install examples are permitted"
+
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($duplicateCanonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($duplicateReleaseFacingPath)
+        RepositoryRoot = $repositoryRoot
+    } $true "duplicate identical canonical install examples are permitted"
 
     $divergentInstallExamplePath = Join-Path $fixtureRoot "divergent-install-example.md"
     Write-Fixture $divergentInstallExamplePath @'
@@ -263,9 +282,10 @@ dotnet tool install --global KeelMatrix.EfGuard --version 0.2.0
         ExpectedPackageVersion = "0.1.0"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
-        InstallExamplePath = @($divergentInstallExamplePath)
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($divergentInstallExamplePath)
         RepositoryRoot = $repositoryRoot
-    } $false "divergent versioned install examples are rejected"
+    } $false "divergent versioned release-facing install examples are rejected"
 
     $equalsInstallMismatchPath = Join-Path $fixtureRoot "equals-install-mismatch.md"
     Write-Fixture $equalsInstallMismatchPath "dotnet tool install --global KeelMatrix.EfGuard --version=0.2.0`n"
@@ -346,14 +366,13 @@ dotnet tool install --global KeelMatrix.EfGuard `
         ExpectedPackageVersion = "0.1.0"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
-        InstallExamplePath = @($multilineDuplicateInstallPath)
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($multilineDuplicateInstallPath)
         RepositoryRoot = $repositoryRoot
-    } $false "duplicate multiline install examples are rejected"
+    } $true "duplicate multiline release-facing install examples are permitted"
 
-    $canonicalInstallExamplePath = Join-Path $fixtureRoot "canonical-install-example.md"
-    Write-Fixture $canonicalInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0`n"
     $cleanReleaseFacingPath = Join-Path $fixtureRoot "clean-release-facing.md"
-    Write-Fixture $cleanReleaseFacingPath "See the canonical package README for installation.`n"
+    Write-Fixture $cleanReleaseFacingPath "See the canonical package README for installation.`n`ndotnet tool install --global KeelMatrix.EfGuard --version 0.1.0`n"
     Invoke-Contract @{
         ExpectedVersion = "0.1.0"
         ExpectedPackageVersion = "0.1.0"
@@ -362,7 +381,19 @@ dotnet tool install --global KeelMatrix.EfGuard `
         InstallExamplePath = @($canonicalInstallExamplePath)
         ReleaseFacingDocumentationPath = @($cleanReleaseFacingPath)
         RepositoryRoot = $repositoryRoot
-    } $true "one pinned canonical install example and a linking release document pass"
+    } $true "one pinned canonical install example and a matching release document pass"
+
+    $missingReleaseInstallPath = Join-Path $fixtureRoot "missing-release-facing-install-example.md"
+    Write-Fixture $missingReleaseInstallPath "See the package documentation for installation.`n"
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($missingReleaseInstallPath)
+        RepositoryRoot = $repositoryRoot
+    } $false "missing release-facing install example is rejected"
 
     $competingUnpinnedPath = Join-Path $fixtureRoot "competing-unpinned-release-document.md"
     Write-Fixture $competingUnpinnedPath @'
@@ -379,6 +410,22 @@ dotnet tool install --global KeelMatrix.EfGuard
         ReleaseFacingDocumentationPath = @($competingUnpinnedPath)
         RepositoryRoot = $repositoryRoot
     } $false "competing unpinned release-facing install example is rejected"
+
+    $competingPackagePath = Join-Path $fixtureRoot "competing-package-release-document.md"
+    Write-Fixture $competingPackagePath @'
+Install the tool in CI:
+
+dotnet tool install --global Contoso.OtherTool --version 0.1.0
+'@
+    Invoke-Contract @{
+        ExpectedVersion = "0.1.0"
+        ExpectedPackageVersion = "0.1.0"
+        ExpectedCommit = $currentCommit
+        ChangelogPath = $mismatchPath
+        InstallExamplePath = @($canonicalInstallExamplePath)
+        ReleaseFacingDocumentationPath = @($competingPackagePath)
+        RepositoryRoot = $repositoryRoot
+    } $false "different release-facing tool package is rejected"
 
     $multilineInstallConsistentPath = Join-Path $fixtureRoot "multiline-install-consistent.md"
     Write-Fixture $multilineInstallConsistentPath @'
@@ -420,7 +467,7 @@ dotnet tool install --global KeelMatrix.EfGuard `
 - Exact commit fixture.
 "@
     Write-Fixture (Join-Path $exactCommitRoot "CHANGELOG.md") $exactCommitChangelog
-    Write-Fixture (Join-Path $exactCommitRoot "README.md") "Repository README.`n"
+    Write-Fixture (Join-Path $exactCommitRoot "README.md") "dotnet tool install --global KeelMatrix.EfGuard --version 1.2.3`n"
     Write-Fixture (Join-Path $exactCommitRoot "src/KeelMatrix.EfGuard/README.md") "dotnet tool install --global KeelMatrix.EfGuard --version 1.2.3`n"
     Write-Fixture (Join-Path $exactCommitRoot "Directory.Build.props") "<Project><PropertyGroup><Version>1.2.3</Version></PropertyGroup></Project>`n"
     & git -C $exactCommitRoot init -b main | Out-Null

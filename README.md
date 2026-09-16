@@ -6,11 +6,17 @@ EfGuard is a local .NET tool that analyzes EF Core migrations without connecting
 
 ## Package README relationship
 
-This is the repository and developer-facing README. The standalone NuGet package README is [src/KeelMatrix.EfGuard/README.md](src/KeelMatrix.EfGuard/README.md); it is the file packed as `README.md` at the package root. Keep package installation, focused quick usage, limitations, and the versioned release install example in that project-local document so the NuGet experience does not silently diverge from this repository documentation.
+This is the repository and developer-facing README. The standalone NuGet package README is [src/KeelMatrix.EfGuard/README.md](src/KeelMatrix.EfGuard/README.md); it is the file packed as `README.md` at the package root. Keep package-specific usage and limitations in that project-local document. The pinned public install example is intentionally repeated here so this README is independently useful and remains version-coherent with the package README.
 
 ## Install
 
-The [project-local package README](src/KeelMatrix.EfGuard/README.md) contains the single canonical, pinned release install command and package-specific limitations. This repository README deliberately does not repeat an install command.
+Install the public .NET tool globally:
+
+```bash
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+```
+
+The [project-local package README](src/KeelMatrix.EfGuard/README.md) contains matching update and uninstall commands.
 
 ## Quick Start
 
@@ -162,7 +168,7 @@ The compatibility fixture matrix exercises each supported EF/provider family:
 
 ## CI
 
-Install the package using the canonical command in the [project-local package README](src/KeelMatrix.EfGuard/README.md), then invoke the CLI directly in CI. Local-feed and `--add-source` commands are validation-only operational details kept in build scripts; they are not release install examples.
+Install the package using the pinned command in this README or the [project-local package README](src/KeelMatrix.EfGuard/README.md), then invoke the CLI directly in CI. Both release-facing examples are validated to agree. Local-feed and `--add-source` commands are validation-only operational details kept in build scripts; they are not release install examples.
 
 On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. A gating job should fail for either non-zero exit code.
 
