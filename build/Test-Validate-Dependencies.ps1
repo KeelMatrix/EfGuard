@@ -148,3 +148,5 @@ finally {
         Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
     }
 }
+
+exit 0

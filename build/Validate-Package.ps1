@@ -334,3 +334,4 @@ finally {
 }
 
 Write-Output "Package contract passed for KeelMatrix.EfGuard $ExpectedVersion at commit $ExpectedCommit."
+exit 0

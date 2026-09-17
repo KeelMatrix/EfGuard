@@ -495,3 +495,4 @@ foreach ($releasePath in @($ReleaseFacingDocumentationPath)) {
 }
 
 Write-Output "Changelog contract passed for KeelMatrix.EfGuard $ExpectedVersion at commit $currentCommit."
+exit 0

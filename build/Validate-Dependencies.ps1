@@ -65,3 +65,4 @@ if ($report -notmatch '(?im)has (?:no|the following) vulnerable packages?') {
 }
 
 Write-Output "Dependency vulnerability audit passed with direct and transitive packages checked."
+exit 0

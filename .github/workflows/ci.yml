@@ -626,3 +626,7 @@ jobs:
       - name: Check for vulnerable dependencies
         shell: pwsh
         run: ./build/Validate-Dependencies.ps1 -SolutionPath KeelMatrix.EfGuard.sln
+
+      - name: Verify dependency audit fails closed
+        shell: pwsh
+        run: ./build/Test-Validate-Dependencies.ps1
