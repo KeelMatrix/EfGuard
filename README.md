@@ -13,7 +13,7 @@ This is the repository and developer-facing README. The standalone NuGet package
 Install the public .NET tool globally:
 
 ```bash
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1
 ```
 
 The [project-local package README](src/KeelMatrix.EfGuard/README.md) contains matching update and uninstall commands.

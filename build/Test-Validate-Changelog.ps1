@@ -51,15 +51,15 @@ try {
 
 ## [Unreleased]
 
-## [0.1.0] (Unreleased)
+## [0.1.1] (Unreleased)
 
 ### Added
 
 - Planned release fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $plannedPath
         RepositoryRoot = $repositoryRoot
@@ -69,15 +69,15 @@ try {
     Write-Fixture $levelOneNestedPath @"
 # [Unreleased]
 
-## [0.1.0] - $releaseDate
+## [0.1.1] - $releaseDate
 
 ### Added
 
 - Nested release fixture under a level-one Unreleased section.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $levelOneNestedPath
         RepositoryRoot = $repositoryRoot
@@ -89,15 +89,15 @@ try {
 
 ## [Unreleased]
 
-### [0.1.0] - $releaseDate
+### [0.1.1] - $releaseDate
 
 ### Added
 
 - Nested release fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $nestedPath
         RepositoryRoot = $repositoryRoot
@@ -107,15 +107,15 @@ try {
     Write-Fixture $plannedHeadingPath @"
 # Changelog
 
-## [0.1.0] - $releaseDate (Planned)
+## [0.1.1] - $releaseDate (Planned)
 
 ### Added
 
 - Planned release fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $plannedHeadingPath
         RepositoryRoot = $repositoryRoot
@@ -127,15 +127,15 @@ try {
 
 ## [Unreleased]
 
-## [0.1.0]
+## [0.1.1]
 
 ### Added
 
 - Missing release date fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $missingDatePath
         RepositoryRoot = $repositoryRoot
@@ -148,15 +148,15 @@ try {
 
 ## [Unreleased]
 
-## [0.1.0] - $futureDate
+## [0.1.1] - $futureDate
 
 ### Added
 
 - Future release date fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $futureDatePath
         RepositoryRoot = $repositoryRoot
@@ -170,15 +170,15 @@ try {
 
 Future changes go here.
 
-## [0.1.0] - $releaseDate
+## [0.1.1] - $releaseDate
 
 ### Added
 
 - Finalized release fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $finalizedPath
         RepositoryRoot = $repositoryRoot
@@ -190,7 +190,7 @@ Future changes go here.
 
 ## [Unreleased]
 
-## [0.1.0] - $releaseDate
+## [0.1.1] - $releaseDate
 
 ### Added
 
@@ -201,8 +201,8 @@ Future changes go here.
 - Pre-release remediation wording.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $initialFixedPath
         RepositoryRoot = $repositoryRoot
@@ -214,7 +214,7 @@ Future changes go here.
 
 ## [Unreleased]
 
-## [0.1.0] - $releaseDate
+## [0.1.1] - $releaseDate
 
 ### Added
 
@@ -223,8 +223,8 @@ Future changes go here.
 - The previously used implementation detail is not part of the product.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $initialMarkersPath
         RepositoryRoot = $repositoryRoot
@@ -240,15 +240,15 @@ Future changes go here.
 
 - Earlier published release fixture.
 
-## [0.1.0] - $releaseDate
+## [0.1.1] - $releaseDate
 
 ### Fixed
 
 - A truthful correction relative to the earlier published release.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $laterReleaseFixedPath
         RepositoryRoot = $repositoryRoot
@@ -260,14 +260,14 @@ Future changes go here.
 
 ## [Unreleased]
 
-## [0.1.0] - $releaseDate
+## [0.1.1] - $releaseDate
 
 ### Added
 
 - Version mismatch fixture.
 "@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
         ExpectedPackageVersion = "0.2.0"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
@@ -275,8 +275,8 @@ Future changes go here.
     } $false "package version mismatch is rejected"
 
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedDependencyVersion = "0.2.0"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
@@ -294,8 +294,8 @@ Future changes go here.
     $installMismatchPath = Join-Path $fixtureRoot "install-mismatch.md"
     Write-Fixture $installMismatchPath "dotnet tool install --global KeelMatrix.EfGuard --version 0.2.0`n"
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($installMismatchPath)
@@ -305,8 +305,8 @@ Future changes go here.
     $missingInstallExamplePath = Join-Path $fixtureRoot "missing-install-example.md"
     Write-Fixture $missingInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard`n"
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($missingInstallExamplePath)
@@ -314,21 +314,21 @@ Future changes go here.
     } $false "install example without a version is rejected"
 
     $canonicalInstallExamplePath = Join-Path $fixtureRoot "canonical-install-example.md"
-    Write-Fixture $canonicalInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0`n"
+    Write-Fixture $canonicalInstallExamplePath "dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1`n"
     $duplicateCanonicalInstallExamplePath = Join-Path $fixtureRoot "duplicate-canonical-install-example.md"
     Write-Fixture $duplicateCanonicalInstallExamplePath @'
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1
 '@
 
     $duplicateReleaseFacingPath = Join-Path $fixtureRoot "duplicate-release-facing-install-example.md"
     Write-Fixture $duplicateReleaseFacingPath @'
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -337,8 +337,8 @@ dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
     } $true "duplicate identical versioned release-facing install examples are permitted"
 
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($duplicateCanonicalInstallExamplePath)
@@ -348,12 +348,12 @@ dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
 
     $divergentInstallExamplePath = Join-Path $fixtureRoot "divergent-install-example.md"
     Write-Fixture $divergentInstallExamplePath @'
-dotnet tool install --global KeelMatrix.EfGuard --version 0.1.0
+dotnet tool install --global KeelMatrix.EfGuard --version 0.1.1
 dotnet tool install --global KeelMatrix.EfGuard --version 0.2.0
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -364,8 +364,8 @@ dotnet tool install --global KeelMatrix.EfGuard --version 0.2.0
     $equalsInstallMismatchPath = Join-Path $fixtureRoot "equals-install-mismatch.md"
     Write-Fixture $equalsInstallMismatchPath "dotnet tool install --global KeelMatrix.EfGuard --version=0.2.0`n"
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($equalsInstallMismatchPath)
@@ -378,8 +378,8 @@ dotnet tool install --global KeelMatrix.EfGuard
   --version 0.2.0
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($multilineInstallMismatchPath)
@@ -392,8 +392,8 @@ dotnet tool install --global KeelMatrix.EfGuard `
   --version 0.2.0
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($backtickInstallMismatchPath)
@@ -406,8 +406,8 @@ dotnet tool install --global KeelMatrix.EfGuard \
   --version 0.2.0
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($backslashInstallMismatchPath)
@@ -420,8 +420,8 @@ dotnet tool install --global KeelMatrix.EfGuard \
   --version=0.2.0
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($equalsMultilineInstallMismatchPath)
@@ -431,13 +431,13 @@ dotnet tool install --global KeelMatrix.EfGuard \
     $multilineDuplicateInstallPath = Join-Path $fixtureRoot "multiline-duplicate-install-example.md"
     Write-Fixture $multilineDuplicateInstallPath @'
 dotnet tool install --global KeelMatrix.EfGuard `
-  --version 0.1.0
+  --version 0.1.1
 dotnet tool install --global KeelMatrix.EfGuard `
-  --version 0.1.0
+  --version 0.1.1
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -446,10 +446,10 @@ dotnet tool install --global KeelMatrix.EfGuard `
     } $true "duplicate multiline release-facing install examples are permitted"
 
     $cleanReleaseFacingPath = Join-Path $fixtureRoot "clean-release-facing.md"
-    Write-Fixture $cleanReleaseFacingPath "See the canonical package README for installation.`n`ndotnet tool install --global KeelMatrix.EfGuard --version 0.1.0`n"
+    Write-Fixture $cleanReleaseFacingPath "See the canonical package README for installation.`n`ndotnet tool install --global KeelMatrix.EfGuard --version 0.1.1`n"
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -460,8 +460,8 @@ dotnet tool install --global KeelMatrix.EfGuard `
     $missingReleaseInstallPath = Join-Path $fixtureRoot "missing-release-facing-install-example.md"
     Write-Fixture $missingReleaseInstallPath "See the package documentation for installation.`n"
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -476,8 +476,8 @@ Install the tool in CI:
 dotnet tool install --global KeelMatrix.EfGuard
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -489,11 +489,11 @@ dotnet tool install --global KeelMatrix.EfGuard
     Write-Fixture $competingPackagePath @'
 Install the tool in CI:
 
-dotnet tool install --global Contoso.OtherTool --version 0.1.0
+dotnet tool install --global Contoso.OtherTool --version 0.1.1
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $mismatchPath
         InstallExamplePath = @($canonicalInstallExamplePath)
@@ -504,11 +504,11 @@ dotnet tool install --global Contoso.OtherTool --version 0.1.0
     $multilineInstallConsistentPath = Join-Path $fixtureRoot "multiline-install-consistent.md"
     Write-Fixture $multilineInstallConsistentPath @'
 dotnet tool install --global KeelMatrix.EfGuard `
-  --version 0.1.0
+  --version 0.1.1
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $finalizedPath
         InstallExamplePath = @($multilineInstallConsistentPath)
@@ -518,11 +518,11 @@ dotnet tool install --global KeelMatrix.EfGuard `
     $equalsMultilineInstallConsistentPath = Join-Path $fixtureRoot "equals-multiline-install-consistent.md"
     Write-Fixture $equalsMultilineInstallConsistentPath @'
 dotnet tool install --global KeelMatrix.EfGuard `
-  --version=0.1.0
+  --version=0.1.1
 '@
     Invoke-Contract @{
-        ExpectedVersion = "0.1.0"
-        ExpectedPackageVersion = "0.1.0"
+        ExpectedVersion = "0.1.1"
+        ExpectedPackageVersion = "0.1.1"
         ExpectedCommit = $currentCommit
         ChangelogPath = $finalizedPath
         InstallExamplePath = @($equalsMultilineInstallConsistentPath)

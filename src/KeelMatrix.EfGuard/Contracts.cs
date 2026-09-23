@@ -130,7 +130,7 @@ internal sealed class Diagnostic
 internal sealed class Report
 {
     public int SchemaVersion { get; set; } = 1;
-    public string ToolVersion { get; set; } = "0.1.0";
+    public string ToolVersion { get; set; } = "0.1.1";
     public string? Provider { get; set; }
     public ProviderSqlEvidence ProviderSql { get; set; } = new();
     public CompatibilityMatrix Compatibility { get; set; } = new();

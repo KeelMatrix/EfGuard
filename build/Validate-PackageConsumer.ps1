@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $PackageDirectory,
 
-    [string] $Version = "0.1.0",
+    [string] $Version = "0.1.1",
     [string] $WorkingDirectory = ""
 )
 

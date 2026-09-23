@@ -1,6 +1,6 @@
 ﻿{
   "schemaVersion": 1,
-  "toolVersion": "0.1.0",
+  "toolVersion": "0.1.1",
   "provider": "Microsoft.EntityFrameworkCore.SqlServer",
   "providerSql": {
     "available": false,

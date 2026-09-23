@@ -469,25 +469,25 @@ jobs:
       - name: Validate deterministic package contract
         shell: pwsh
         run: |
-          ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.0 -ExpectedCommit $env:GITHUB_SHA
+          ./build/Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.1 -ExpectedCommit $env:GITHUB_SHA
 
       - name: Verify unexpected archive entries fail closed
         shell: pwsh
         run: |
-          ./build/Test-Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.0 -ExpectedCommit $env:GITHUB_SHA
+          ./build/Test-Validate-Package.ps1 -PackageDirectory ./artifacts/packages -ExpectedVersion 0.1.1 -ExpectedCommit $env:GITHUB_SHA
 
       - name: Validate isolated package consumer
         shell: pwsh
         run: |
-          ./build/Validate-PackageConsumer.ps1 -PackageDirectory ./artifacts/packages -Version 0.1.0 -WorkingDirectory $PWD
+          ./build/Validate-PackageConsumer.ps1 -PackageDirectory ./artifacts/packages -Version 0.1.1 -WorkingDirectory $PWD
 
       - name: Verify package set and archive contents
         shell: pwsh
         run: |
           $packageDirectory = Join-Path $PWD "artifacts/packages"
           $expected = @(
-            "KeelMatrix.EfGuard.0.1.0.nupkg",
-            "KeelMatrix.EfGuard.0.1.0.snupkg"
+            "KeelMatrix.EfGuard.0.1.1.nupkg",
+            "KeelMatrix.EfGuard.0.1.1.snupkg"
           ) | Sort-Object
           $actual = @(Get-ChildItem -LiteralPath $packageDirectory -File | Select-Object -ExpandProperty Name | Sort-Object)
 
@@ -533,7 +533,7 @@ jobs:
       - name: Install and smoke-test the packed tool
         shell: pwsh
         run: |
-          dotnet tool install KeelMatrix.EfGuard --tool-path ./artifacts/tool --version 0.1.0 --add-source ./artifacts/packages --configfile ./NuGet.config --ignore-failed-sources
+          dotnet tool install KeelMatrix.EfGuard --tool-path ./artifacts/tool --version 0.1.1 --add-source ./artifacts/packages --configfile ./NuGet.config --ignore-failed-sources
           $tool = Join-Path $PWD "artifacts/tool/efguard"
           if (-not (Test-Path $tool)) {
             throw "The packed efguard tool was not installed at $tool."
@@ -593,8 +593,8 @@ jobs:
           name: efguard-packages
           if-no-files-found: error
           path: |
-            ./artifacts/packages/KeelMatrix.EfGuard.0.1.0.nupkg
-            ./artifacts/packages/KeelMatrix.EfGuard.0.1.0.snupkg
+            ./artifacts/packages/KeelMatrix.EfGuard.0.1.1.nupkg
+            ./artifacts/packages/KeelMatrix.EfGuard.0.1.1.snupkg
 
   dependency-audit:
     name: Dependency vulnerability audit

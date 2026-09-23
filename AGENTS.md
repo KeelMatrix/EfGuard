@@ -22,7 +22,7 @@ For the repository CI-equivalent validation path, use `pwsh ./build/validate.ps1
 Before creating a release tag, finalize the intended entry in `CHANGELOG.md`, commit and push that change, and run the same repository-controlled contract check on the exact commit that will be tagged:
 
 ```powershell
-$version = "0.1.0"
+$version = "0.1.1"
 $commit = (git rev-parse HEAD).Trim()
 pwsh ./build/Validate-Changelog.ps1 -ExpectedVersion $version -ExpectedPackageVersion $version -ExpectedDependencyVersion $version -ExpectedCommit $commit -RequireChangelogInCommit
 ```
