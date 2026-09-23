@@ -21,6 +21,10 @@ function Write-Fixture([string] $Path, [string] $Content) {
 }
 
 function Invoke-Contract([hashtable] $Arguments, [bool] $ShouldPass, [string] $CaseName) {
+    if (-not $Arguments.ContainsKey("ExpectedDependencyVersion")) {
+        $Arguments["ExpectedDependencyVersion"] = "0.1.1"
+    }
+
     $output = & pwsh -NoLogo -NoProfile -File $validator @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     if ($ShouldPass -and $exitCode -ne 0) {

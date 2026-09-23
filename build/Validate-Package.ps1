@@ -272,7 +272,7 @@ try {
     $dependencies = @($dependencyGroups[0].dependency)
     Assert-Equal 1 $dependencies.Count "dependency count"
     Assert-Equal "KeelMatrix.Telemetry" $dependencies[0].id "dependency ID"
-    Assert-Equal "0.1.0" $dependencies[0].version "dependency version"
+    Assert-Equal "0.1.1" $dependencies[0].version "dependency version"
 }
 finally { $nupkg.Dispose() }
 
