@@ -25,7 +25,7 @@ function Invoke-Contract([hashtable] $Arguments, [bool] $ShouldPass, [string] $C
         $Arguments["ExpectedDependencyVersion"] = "0.1.1"
     }
 
-    $output = & pwsh -NoLogo -NoProfile -File $validator @Arguments 2>&1
+    $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $validator @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     if ($ShouldPass -and $exitCode -ne 0) {
         throw "$CaseName unexpectedly failed with exit code ${exitCode}: $($output -join "`n")"

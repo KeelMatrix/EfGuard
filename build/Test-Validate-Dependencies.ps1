@@ -18,7 +18,7 @@ function Invoke-Audit([string] $Name, [string] $Report, [int] $CommandExitCode) 
     $previousExitCode = $env:EFGUARD_AUDIT_TEST_EXIT_CODE
     try {
         New-FakeDotnet $Name $Report $CommandExitCode
-        $output = & pwsh -NoLogo -NoProfile -File $validator -SolutionPath "KeelMatrix.EfGuard.sln" 2>&1 | Out-String
+        $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $validator -SolutionPath "KeelMatrix.EfGuard.sln" 2>&1 | Out-String
         return [pscustomobject]@{
             ExitCode = $LASTEXITCODE
             Output = $output

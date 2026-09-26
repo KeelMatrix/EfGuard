@@ -50,27 +50,27 @@ try {
     New-Item -ItemType Directory -Path $validationRoot -Force | Out-Null
     Reset-PackageDirectory $packageDirectory
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Changelog.ps1")
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-Changelog.ps1")
     if ($LASTEXITCODE -ne 0) { throw "changelog contract regression coverage failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-CommitHistoryGate.ps1")
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-CommitHistoryGate.ps1")
     if ($LASTEXITCODE -ne 0) { throw "commit history gate regression coverage failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-WorkflowCredentials.ps1")
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-WorkflowCredentials.ps1")
     if ($LASTEXITCODE -ne 0) { throw "workflow credential validation failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-WorkflowCredentials.ps1")
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-WorkflowCredentials.ps1")
     if ($LASTEXITCODE -ne 0) { throw "workflow credential validation contract coverage failed." }
 
     Invoke-Dotnet @("restore", "KeelMatrix.EfGuard.sln", "--configfile", "NuGet.config")
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Dependencies.ps1") -SolutionPath "KeelMatrix.EfGuard.sln"
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-Dependencies.ps1") -SolutionPath "KeelMatrix.EfGuard.sln"
     if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Dependencies.ps1")
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-Dependencies.ps1")
     if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit contract coverage failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Compare-ProviderEngineEvidence.ps1")
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Compare-ProviderEngineEvidence.ps1")
     if ($LASTEXITCODE -ne 0) { throw "provider engine evidence validation contract coverage failed." }
 
     Invoke-Dotnet @("build", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-restore")
@@ -80,13 +80,13 @@ try {
 
     $commit = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw "git rev-parse HEAD failed." }
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
     if ($LASTEXITCODE -ne 0) { throw "package contract validation failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
     if ($LASTEXITCODE -ne 0) { throw "negative package contract validation failed." }
 
-    & pwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-PackageConsumer.ps1") -PackageDirectory $packageDirectory -Version $Version -WorkingDirectory $repositoryRoot
+    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-PackageConsumer.ps1") -PackageDirectory $packageDirectory -Version $Version -WorkingDirectory $repositoryRoot
     if ($LASTEXITCODE -ne 0) { throw "isolated package consumer validation failed." }
 
     Write-Output "Local validation passed with telemetry disabled, package contract validation, and isolated package consumer smoke."

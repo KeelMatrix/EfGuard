@@ -8,7 +8,7 @@ $shippedPath = Join-Path $repositoryRoot "src/KeelMatrix.EfGuard/ProviderEngineE
 $validationRoot = Join-Path ([IO.Path]::GetTempPath()) ("efguard-engine-evidence-" + [Guid]::NewGuid().ToString("N"))
 
 function Invoke-Compare([string] $Path) {
-    $output = & pwsh -NoLogo -NoProfile -File $compareScript -Engine "sqlserver" -RecordedEvidencePath $Path -ShippedEvidencePath $shippedPath 2>&1
+    $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $compareScript -Engine "sqlserver" -RecordedEvidencePath $Path -ShippedEvidencePath $shippedPath 2>&1
     return $LASTEXITCODE
 }
 

@@ -8,7 +8,7 @@ $workflowDirectory = Join-Path $temporaryRoot ".github/workflows"
 $scriptDirectory = Join-Path $temporaryRoot "build"
 
 function Invoke-Validator([string] $Root) {
-    $output = & pwsh -NoLogo -NoProfile -File $validator -RepositoryRoot $Root 2>&1 | Out-String
+    $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $validator -RepositoryRoot $Root 2>&1 | Out-String
     [pscustomobject]@{
         ExitCode = $LASTEXITCODE
         Output = $output
@@ -60,7 +60,7 @@ try {
     $legacyValidator | Set-Content -LiteralPath $legacyValidatorPath -Encoding utf8
 
     function Invoke-LegacyValidator([string] $Root) {
-        $output = & pwsh -NoLogo -NoProfile -File $legacyValidatorPath -RepositoryRoot $Root 2>&1 | Out-String
+        $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $legacyValidatorPath -RepositoryRoot $Root 2>&1 | Out-String
         [pscustomobject]@{
             ExitCode = $LASTEXITCODE
             Output = $output
