@@ -1,7 +1,8 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'Invoke-NestedPwsh.ps1')
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $validator = Join-Path $PSScriptRoot "Validate-Changelog.ps1"
 $currentCommit = (& git -C $repositoryRoot rev-parse --verify HEAD).Trim()
@@ -25,7 +26,7 @@ function Invoke-Contract([hashtable] $Arguments, [bool] $ShouldPass, [string] $C
         $Arguments["ExpectedDependencyVersion"] = "0.1.1"
     }
 
-    $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $validator @Arguments 2>&1
+    $output = Invoke-NestedPwsh -NoLogo -NoProfile -File $validator @Arguments 2>&1
     $exitCode = $LASTEXITCODE
     if ($ShouldPass -and $exitCode -ne 0) {
         throw "$CaseName unexpectedly failed with exit code ${exitCode}: $($output -join "`n")"

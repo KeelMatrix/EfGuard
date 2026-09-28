@@ -1,14 +1,15 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param()
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'Invoke-NestedPwsh.ps1')
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $compareScript = Join-Path $PSScriptRoot "Compare-ProviderEngineEvidence.ps1"
 $shippedPath = Join-Path $repositoryRoot "src/KeelMatrix.EfGuard/ProviderEngineEvidence.json"
 $validationRoot = Join-Path ([IO.Path]::GetTempPath()) ("efguard-engine-evidence-" + [Guid]::NewGuid().ToString("N"))
 
 function Invoke-Compare([string] $Path) {
-    $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $compareScript -Engine "sqlserver" -RecordedEvidencePath $Path -ShippedEvidencePath $shippedPath 2>&1
+    $output = Invoke-NestedPwsh -NoLogo -NoProfile -File $compareScript -Engine "sqlserver" -RecordedEvidencePath $Path -ShippedEvidencePath $shippedPath 2>&1
     return $LASTEXITCODE
 }
 

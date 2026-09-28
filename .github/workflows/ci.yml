@@ -64,6 +64,14 @@ jobs:
             throw "KEELMATRIX_NO_TELEMETRY must be set to 1 for CI."
           }
 
+      - name: Verify hidden child PowerShell launches
+        shell: pwsh
+        run: ./build/Test-NestedPwshLaunch.ps1 -SelfTest
+
+      - name: Verify repository child PowerShell launches
+        shell: pwsh
+        run: ./build/Test-NestedPwshLaunch.ps1
+
       - name: Restore
         run: dotnet restore KeelMatrix.EfGuard.sln --configfile NuGet.config -m:1 -nodeReuse:false
 

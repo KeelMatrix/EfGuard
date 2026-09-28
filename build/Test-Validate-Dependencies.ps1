@@ -2,6 +2,7 @@
 param()
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'Invoke-NestedPwsh.ps1')
 $validator = Join-Path $PSScriptRoot "Validate-Dependencies.ps1"
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("efguard-dependency-audit-" + [Guid]::NewGuid().ToString("N"))
 $previousPath = $env:PATH
@@ -18,7 +19,7 @@ function Invoke-Audit([string] $Name, [string] $Report, [int] $CommandExitCode) 
     $previousExitCode = $env:EFGUARD_AUDIT_TEST_EXIT_CODE
     try {
         New-FakeDotnet $Name $Report $CommandExitCode
-        $output = & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File $validator -SolutionPath "KeelMatrix.EfGuard.sln" 2>&1 | Out-String
+        $output = Invoke-NestedPwsh -NoLogo -NoProfile -File $validator -SolutionPath "KeelMatrix.EfGuard.sln" 2>&1 | Out-String
         return [pscustomobject]@{
             ExitCode = $LASTEXITCODE
             Output = $output

@@ -5,7 +5,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'Invoke-NestedPwsh.ps1')
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$launchGuard = Join-Path $repositoryRoot "build/Test-NestedPwshLaunch.ps1"
+& $launchGuard -SelfTest
+if ($LASTEXITCODE -ne 0) { throw "Nested PowerShell launch guard self-test failed." }
+& $launchGuard
+if ($LASTEXITCODE -ne 0) { throw "Nested PowerShell launch guard failed." }
 $packageDirectory = Join-Path $repositoryRoot "artifacts/packages"
 $validationRoot = Join-Path ([IO.Path]::GetTempPath()) ("efguard-validation-" + [Guid]::NewGuid().ToString("N"))
 $previousNodeReuse = $env:MSBUILDDISABLENODEREUSE
@@ -50,27 +56,27 @@ try {
     New-Item -ItemType Directory -Path $validationRoot -Force | Out-Null
     Reset-PackageDirectory $packageDirectory
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-Changelog.ps1")
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Changelog.ps1")
     if ($LASTEXITCODE -ne 0) { throw "changelog contract regression coverage failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-CommitHistoryGate.ps1")
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-CommitHistoryGate.ps1")
     if ($LASTEXITCODE -ne 0) { throw "commit history gate regression coverage failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-WorkflowCredentials.ps1")
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-WorkflowCredentials.ps1")
     if ($LASTEXITCODE -ne 0) { throw "workflow credential validation failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-WorkflowCredentials.ps1")
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-WorkflowCredentials.ps1")
     if ($LASTEXITCODE -ne 0) { throw "workflow credential validation contract coverage failed." }
 
     Invoke-Dotnet @("restore", "KeelMatrix.EfGuard.sln", "--configfile", "NuGet.config")
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-Dependencies.ps1") -SolutionPath "KeelMatrix.EfGuard.sln"
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Dependencies.ps1") -SolutionPath "KeelMatrix.EfGuard.sln"
     if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-Dependencies.ps1")
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Dependencies.ps1")
     if ($LASTEXITCODE -ne 0) { throw "dependency vulnerability audit contract coverage failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Compare-ProviderEngineEvidence.ps1")
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Compare-ProviderEngineEvidence.ps1")
     if ($LASTEXITCODE -ne 0) { throw "provider engine evidence validation contract coverage failed." }
 
     Invoke-Dotnet @("build", "KeelMatrix.EfGuard.sln", "--configuration", $Configuration, "--no-restore")
@@ -80,13 +86,13 @@ try {
 
     $commit = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw "git rev-parse HEAD failed." }
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
     if ($LASTEXITCODE -ne 0) { throw "package contract validation failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Test-Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Test-Validate-Package.ps1") -PackageDirectory $packageDirectory -ExpectedVersion $Version -ExpectedCommit $commit
     if ($LASTEXITCODE -ne 0) { throw "negative package contract validation failed." }
 
-    & pwsh -NoLogo -NoProfile -WindowStyle Hidden -File (Join-Path $PSScriptRoot "Validate-PackageConsumer.ps1") -PackageDirectory $packageDirectory -Version $Version -WorkingDirectory $repositoryRoot
+    Invoke-NestedPwsh -NoLogo -NoProfile -File (Join-Path $PSScriptRoot "Validate-PackageConsumer.ps1") -PackageDirectory $packageDirectory -Version $Version -WorkingDirectory $repositoryRoot
     if ($LASTEXITCODE -ne 0) { throw "isolated package consumer validation failed." }
 
     Write-Output "Local validation passed with telemetry disabled, package contract validation, and isolated package consumer smoke."
