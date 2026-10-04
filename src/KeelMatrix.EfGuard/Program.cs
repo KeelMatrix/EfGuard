@@ -77,13 +77,9 @@ internal static class Program
 
     private static void TrackTelemetry()
     {
-        try
-        {
-            Client client = new("efguard", typeof(Program));
-            client.TrackActivation();
-            client.TrackHeartbeat();
-        }
-        catch { }
+        Client client = new("efguard", typeof(Program));
+        client.TrackActivation();
+        client.TrackHeartbeat();
     }
 
     private static void WriteExtractionNotes(ExtractionResult extraction)
