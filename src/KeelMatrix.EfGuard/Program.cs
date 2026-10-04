@@ -65,14 +65,19 @@ internal static class Program
             report = new Report { Errors = ["EfGuard could not complete the analysis."], Summary = new ReportSummary { ExitCode = 2 }, Baseline = new BaselineReport { Requested = options.Baseline is not null, Reference = options.Baseline } };
         }
 
-        if (report.Summary.ExitCode != 2)
-            TrackTelemetry();
+        TrackTelemetryAfterCompletedScan(report.Summary.ExitCode, TrackTelemetry);
 
         if (options.Format == OutputFormat.Json)
             await Console.Out.WriteLineAsync(ReportSerialization.Serialize(report)).ConfigureAwait(false);
         else
             await Console.Out.WriteLineAsync(FormatConsole(report)).ConfigureAwait(false);
         return report.Summary.ExitCode;
+    }
+
+    internal static void TrackTelemetryAfterCompletedScan(int exitCode, Action trackTelemetry)
+    {
+        if (exitCode is 0 or 1)
+            trackTelemetry();
     }
 
     private static void TrackTelemetry()

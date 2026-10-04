@@ -47,7 +47,7 @@ dotnet restore src/Orders/Orders.csproj
 efguard check --project src/Orders/Orders.csproj
 ```
 
-Extraction builds the selected project with `--no-restore` against that restored graph. When the graph is missing, EfGuard fails closed with exit code `2` and tells you to run `dotnet restore`; it never silently falls back to a network restore. `--baseline` reuses the same restored graph from your working tree inside an isolated temporary checkout, so the active worktree is never modified. The only normal network behavior is best-effort telemetry.
+Extraction builds the selected project with `--no-restore` against that restored graph. When the graph is missing, EfGuard fails closed with exit code `2` and tells you to run `dotnet restore`; it never silently falls back to a network restore. `--baseline` reuses the same restored graph from your working tree inside an isolated temporary checkout, so the active worktree is never modified. The only normal network behavior is telemetry delegated to the shared client.
 
 ## Exit Codes and Output
 
@@ -174,7 +174,7 @@ On Windows PowerShell, inspect `$LASTEXITCODE` instead of `test`. A gating job s
 
 ## Privacy
 
-After a trustworthy scan, EfGuard uses `KeelMatrix.Telemetry` for one anonymous activation and at most one weekly heartbeat. Telemetry does not receive source, generated SQL, schema names, paths, project names, provider/EF versions, findings, or credentials. It is best effort and cannot change analysis. Disable it for local development and company CI with `KEELMATRIX_NO_TELEMETRY=1`.
+After a trustworthy scan completes with exit code `0` or `1`, EfGuard requests activation and heartbeat telemetry through `KeelMatrix.Telemetry`. An incomplete scan (exit code `2`) does not request telemetry. EfGuard does not pass source, generated SQL, schema names, analyzed project or repository names, paths, provider/EF versions, findings, or credentials to the shared client. The shared client owns event fields, opt-out handling, cadence, state, queueing, and delivery; see [PRIVACY.md](https://github.com/KeelMatrix/EfGuard/blob/main/PRIVACY.md) and the [KeelMatrix.Telemetry privacy policy](https://github.com/KeelMatrix/Telemetry/blob/main/PRIVACY.md) for the current contract. Set `KEELMATRIX_NO_TELEMETRY=1` to disable telemetry during local development and company CI.
 
 For repository validation with telemetry explicitly disabled, run `pwsh ./build/validate.ps1` on Windows or `./build/validate.sh` on Linux/macOS. This controlled path runs restore, Release build, tests, formatting, package-contract inspection, and an isolated installed-package consumer smoke test.
 

@@ -37,5 +37,5 @@ The package is a net8.0 .NET tool named `efguard`. The worker is an implementati
 - Extraction failures and unknown migration operations fail closed.
 - Baseline analysis uses an isolated temporary checkout and never writes the active worktree.
 - The report schema, rule IDs, configuration version, options, and exit codes are stable v1 contracts.
-- Telemetry is best-effort and never receives source, SQL, paths, names, provider, EF version, or findings.
+- Telemetry is requested only after a trustworthy completed scan. EfGuard does not pass scan artifacts or analyzed project data to the shared client; product-specific exclusions are documented in `PRIVACY.md`. Shared telemetry fields, opt-out handling, cadence, state, queueing, and delivery are owned by `KeelMatrix.Telemetry`.
 - No database is connected to or modified by the tool.

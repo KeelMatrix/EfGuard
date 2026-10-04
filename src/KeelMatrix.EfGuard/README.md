@@ -63,7 +63,7 @@ efguard check --project src/Orders/Orders.csproj --baseline origin/main --format
 - [JSON report and compatibility policy](https://github.com/KeelMatrix/EfGuard/blob/main/docs/JSON-SCHEMA.md)
 - [Rule documentation](https://github.com/KeelMatrix/EfGuard/tree/main/docs/rules)
 - [Security policy](https://github.com/KeelMatrix/EfGuard/blob/main/SECURITY.md)
-- [Privacy and telemetry contract](https://github.com/KeelMatrix/EfGuard/blob/main/PRIVACY.md)
+- [Privacy and telemetry use](https://github.com/KeelMatrix/EfGuard/blob/main/PRIVACY.md)
 - [Contributing guide](https://github.com/KeelMatrix/EfGuard/blob/main/CONTRIBUTING.md)
 
 EfGuard is MIT licensed. See the [license](https://github.com/KeelMatrix/EfGuard/blob/main/LICENSE).
