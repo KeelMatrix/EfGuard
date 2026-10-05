@@ -12,6 +12,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $packageDirectory = [IO.Path]::GetFullPath($PackageDirectory)
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+& (Join-Path $PSScriptRoot "Test-Validate-WebsiteCatalog.ps1") -RepositoryRoot $repositoryRoot
 if ([string]::IsNullOrWhiteSpace($ExpectedCommit)) {
     $ExpectedCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) {

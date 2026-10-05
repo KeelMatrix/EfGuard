@@ -149,6 +149,7 @@ function Invoke-Dotnet([string[]] $Arguments) {
 }
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+& (Join-Path $PSScriptRoot "Validate-WebsiteCatalog.ps1") -RepositoryRoot $repositoryRoot
 $packageDirectory = [IO.Path]::GetFullPath($PackageDirectory)
 if (-not (Test-Path -LiteralPath $packageDirectory -PathType Container)) {
     Fail "package directory '$packageDirectory' does not exist."
@@ -258,7 +259,8 @@ try {
     Assert-Equal "KeelMatrix" $metadata.authors "authors"
     Assert-Equal "KeelMatrix" $metadata.copyright "copyright"
     Assert-Equal "Detect EF Core migrations that can break rolling deployments, lose data, or block production traffic, and explain a safer rollout before merge." $metadata.description "description"
-    Assert-Equal "ef-core entity-framework database-migrations zero-downtime rolling-deployment ci sql-server postgresql dotnet-tool" $metadata.tags "tags"
+    Assert-Equal "https://github.com/KeelMatrix/EfGuard#readme" $metadata.projectUrl "project URL"
+    Assert-Equal "ef-core entity-framework database-migrations zero-downtime rolling-deployment ci sql-server postgresql dotnet-tool keelmatrix-public-product keelmatrix-primary" $metadata.tags "tags"
     Assert-Equal "MIT" $metadata.license.InnerText "license"
     Assert-Equal "README.md" $metadata.readme "README metadata"
     Assert-Equal "icon.png" $metadata.icon "icon metadata"
