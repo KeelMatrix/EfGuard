@@ -10,6 +10,34 @@ param(
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
+function Set-NuspecProjectUrl([string] $PackagePath, [string] $ProjectUrl) {
+    $archive = [IO.Compression.ZipFile]::Open($PackagePath, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        $entry = $archive.GetEntry("KeelMatrix.EfGuard.nuspec")
+        if ($null -eq $entry) { throw "Package nuspec is missing." }
+        $reader = [IO.StreamReader]::new($entry.Open())
+        try { [xml] $nuspec = $reader.ReadToEnd() }
+        finally { $reader.Dispose() }
+
+        $projectUrlNode = $nuspec.SelectSingleNode("//*[local-name()='projectUrl']")
+        if ($null -eq $projectUrlNode) { throw "Package project URL is missing." }
+        $projectUrlNode.InnerText = $ProjectUrl
+        $entry.Delete()
+
+        $updatedEntry = $archive.CreateEntry("KeelMatrix.EfGuard.nuspec")
+        $stream = $updatedEntry.Open()
+        try {
+            $settings = [System.Xml.XmlWriterSettings]::new()
+            $settings.Encoding = [System.Text.UTF8Encoding]::new($false)
+            $writer = [System.Xml.XmlWriter]::Create($stream, $settings)
+            try { $nuspec.Save($writer) }
+            finally { $writer.Dispose() }
+        }
+        finally { $stream.Dispose() }
+    }
+    finally { $archive.Dispose() }
+}
+
 $packageDirectory = [IO.Path]::GetFullPath($PackageDirectory)
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 & (Join-Path $PSScriptRoot "Test-Validate-WebsiteCatalog.ps1") -RepositoryRoot $repositoryRoot
@@ -140,6 +168,28 @@ try {
     }
 
     Write-Output "Negative package validation passed: an unresolved relative README link was rejected."
+
+    Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
+    New-Item -ItemType Directory -Path $temporaryRoot -Force | Out-Null
+    $negativePackage = Join-Path $temporaryRoot "KeelMatrix.EfGuard.$ExpectedVersion.nupkg"
+    Copy-Item -LiteralPath (Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.nupkg") -Destination $negativePackage
+    Copy-Item -LiteralPath (Join-Path $packageDirectory "KeelMatrix.EfGuard.$ExpectedVersion.snupkg") -Destination $temporaryRoot
+    Set-NuspecProjectUrl $negativePackage "https://github.com/KeelMatrix/EfGuard#readme"
+
+    $failedAsExpected = $false
+    try { & $validator -PackageDirectory $temporaryRoot -ExpectedVersion $ExpectedVersion -ExpectedCommit $ExpectedCommit }
+    catch {
+        $failedAsExpected = $_.Exception.Message -match "project URL"
+        if (-not $failedAsExpected) {
+            throw
+        }
+    }
+
+    if (-not $failedAsExpected) {
+        throw "The package validator accepted a project URL with a fragment."
+    }
+
+    Write-Output "Negative package validation passed: a project URL with a fragment was rejected."
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) {

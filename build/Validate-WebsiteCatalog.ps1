@@ -63,9 +63,11 @@ catch {
 }
 
 Assert-Equal "KeelMatrix.EfGuard" (Get-ExactlyOneValue $project "PackageId" "package project") "PackageId"
-Assert-Equal "https://github.com/KeelMatrix/EfGuard#readme" (Get-ExactlyOneValue $project "PackageProjectUrl" "package project") "PackageProjectUrl"
+$canonicalProjectUrl = "https://github.com/KeelMatrix/EfGuard"
+Assert-Equal $canonicalProjectUrl (Get-ExactlyOneValue $project "PackageProjectUrl" "package project") "PackageProjectUrl"
 Assert-Equal "true" ((Get-ExactlyOneValue $project "PackAsTool" "package project").ToLowerInvariant()) "PackAsTool"
 Assert-Equal "efguard" (Get-ExactlyOneValue $project "ToolCommandName" "package project") "ToolCommandName"
+Assert-Equal $canonicalProjectUrl (Get-ExactlyOneValue $commonProps "PackageProjectUrl" "common package metadata") "PackageProjectUrl"
 Assert-Equal "https://github.com/KeelMatrix/EfGuard" (Get-ExactlyOneValue $commonProps "RepositoryUrl" "common package metadata") "RepositoryUrl"
 Assert-Equal "git" (Get-ExactlyOneValue $commonProps "RepositoryType" "common package metadata") "RepositoryType"
 Assert-Equal "true" ((Get-ExactlyOneValue $commonProps "PublishRepositoryUrl" "common package metadata").ToLowerInvariant()) "PublishRepositoryUrl"

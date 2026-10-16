@@ -27,7 +27,7 @@
   <PropertyGroup Condition="'$(IsPackable)' == 'true'">
     <Authors>KeelMatrix</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/KeelMatrix/EfGuard#readme</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/KeelMatrix/EfGuard</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <IncludeSymbols>true</IncludeSymbols>

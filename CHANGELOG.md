@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Use the canonical GitHub repository URL in package project metadata.
 - Clarified when EfGuard requests telemetry and linked shared behavior details to `KeelMatrix.Telemetry`.
 
 ## [0.1.1] - 2026-09-23

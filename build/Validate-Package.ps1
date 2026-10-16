@@ -259,7 +259,7 @@ try {
     Assert-Equal "KeelMatrix" $metadata.authors "authors"
     Assert-Equal "KeelMatrix" $metadata.copyright "copyright"
     Assert-Equal "Detect EF Core migrations that can break rolling deployments, lose data, or block production traffic, and explain a safer rollout before merge." $metadata.description "description"
-    Assert-Equal "https://github.com/KeelMatrix/EfGuard#readme" $metadata.projectUrl "project URL"
+    Assert-Equal "https://github.com/KeelMatrix/EfGuard" $metadata.projectUrl "project URL"
     Assert-Equal "ef-core entity-framework database-migrations zero-downtime rolling-deployment ci sql-server postgresql dotnet-tool keelmatrix-public-product keelmatrix-primary" $metadata.tags "tags"
     Assert-Equal "MIT" $metadata.license.InnerText "license"
     Assert-Equal "README.md" $metadata.readme "README metadata"

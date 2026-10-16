@@ -10,7 +10,7 @@
     <Authors>KeelMatrix</Authors>
     <Copyright>KeelMatrix</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/KeelMatrix/EfGuard#readme</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/KeelMatrix/EfGuard</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
     <IncludeSymbols>true</IncludeSymbols>
