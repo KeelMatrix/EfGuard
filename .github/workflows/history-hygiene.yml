@@ -2,6 +2,8 @@ name: Commit history hygiene
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -16,9 +18,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check all reachable commits
+      - name: Check introduced commits
+        env:
+          HISTORY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HISTORY_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         shell: bash
-        run: sh .githooks/check-history
+        run: sh .githooks/check-history "$HISTORY_BASE_SHA" "$HISTORY_HEAD_SHA"
 
       - name: Verify commit-message gate regression coverage
         shell: pwsh

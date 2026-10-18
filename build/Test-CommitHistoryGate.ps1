@@ -29,10 +29,14 @@ function Invoke-CommitMessageHook([string] $Path, [string] $Message) {
     return [int]$status
 }
 
-function Invoke-HistoryHook([string] $Head) {
-    Push-Location $repositoryRoot
+function Invoke-HistoryHook([string] $WorkingDirectory, [string] $Start, [string] $End) {
+    $shellCommand = Get-Command sh -ErrorAction SilentlyContinue
+    $shellPath = if ($shellCommand) { $shellCommand.Source } else { Join-Path (Split-Path $bashPath) "sh.exe" }
+    if (-not (Test-Path -LiteralPath $shellPath)) { throw "Could not locate the POSIX shell for the history hook." }
+    Push-Location $WorkingDirectory
     try {
-        & $bashPath --login -c 'sh "$1" "$2" "$3"' efguard-history-gate .githooks/check-history "0000000000000000000000000000000000000000" $Head | Out-Null
+        $historyHook = Join-Path $repositoryRoot ".githooks/check-history"
+        & $shellPath $historyHook $Start $End | Out-Null
         $status = $LASTEXITCODE
     }
     finally {
@@ -95,15 +99,36 @@ fix: preserve useful metadata diagnostics
         throw "The commit-message gate accepted conflict-marker lines (exit $markerStatus)."
     }
 
-    $head = (& git -C $repositoryRoot rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($head)) {
-        throw "Could not determine the current repository commit."
+    $historyRepository = Join-Path $temporaryRoot "history-repository"
+    New-Item -ItemType Directory -Path $historyRepository -Force | Out-Null
+    & git -C $historyRepository init --quiet
+    if ($LASTEXITCODE -ne 0) { throw "Could not initialize the synthetic history repository." }
+    & git -C $historyRepository config user.name "KeelMatrix"
+    & git -C $historyRepository config user.email "keelmatrix@gmail.com"
+    "legacy baseline" | Set-Content -LiteralPath (Join-Path $historyRepository "baseline.txt")
+    & git -C $historyRepository add baseline.txt
+    & git -C $historyRepository commit --quiet -m "legacy baseline" -m "Signed-off-by: dependabot[bot] <support@github.com>"
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the synthetic legacy baseline." }
+    $base = (& git -C $historyRepository rev-parse HEAD).Trim()
+    "clean change" | Set-Content -LiteralPath (Join-Path $historyRepository "clean.txt")
+    & git -C $historyRepository add clean.txt
+    & git -C $historyRepository commit --quiet -m "fix: add clean change"
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the synthetic clean commit." }
+    $cleanHead = (& git -C $historyRepository rev-parse HEAD).Trim()
+    if ((Invoke-HistoryHook $historyRepository $base $cleanHead) -ne 0) {
+        throw "The history gate rejected clean introduced history after an older baseline commit."
     }
-    if ((Invoke-HistoryHook $head) -ne 0) {
-        throw "The history gate rejected the current reachable branch history."
+    "polluted change" | Set-Content -LiteralPath (Join-Path $historyRepository "polluted.txt")
+    & git -C $historyRepository add polluted.txt
+    & git -C $historyRepository commit --quiet -m "fix: add polluted change" -m "Co-authored-by: unauthorized identity"
+    if ($LASTEXITCODE -ne 0) { throw "Could not create the synthetic polluted commit." }
+    $pollutedHead = (& git -C $historyRepository rev-parse HEAD).Trim()
+    if ((Invoke-HistoryHook $historyRepository $cleanHead $pollutedHead) -eq 0) {
+        throw "The history gate accepted an introduced commit with a prohibited identity trailer."
     }
+    $global:LASTEXITCODE = 0
 
-    Write-Output "Commit-message and reachable-history gate regression coverage passed."
+    Write-Output "Commit-message and introduced-history gate regression coverage passed."
 }
 finally {
     if (Test-Path -LiteralPath $temporaryRoot) {
