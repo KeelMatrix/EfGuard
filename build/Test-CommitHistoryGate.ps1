@@ -126,6 +126,7 @@ fix: preserve useful metadata diagnostics
     if ((Invoke-HistoryHook $historyRepository $cleanHead $pollutedHead) -eq 0) {
         throw "The history gate accepted an introduced commit with a prohibited identity trailer."
     }
+    $global:LASTEXITCODE = 0
 
     Write-Output "Commit-message and introduced-history gate regression coverage passed."
 }
