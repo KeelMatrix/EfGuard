@@ -30,15 +30,9 @@ function Invoke-CommitMessageHook([string] $Path, [string] $Message) {
 }
 
 function Invoke-HistoryHook([string] $WorkingDirectory, [string] $Start, [string] $End) {
-    Push-Location $WorkingDirectory
-    try {
         $historyHook = Join-Path $repositoryRoot ".githooks/check-history"
-        & $bashPath --login -c 'sh "$1" "$2" "$3"' efguard-history-gate $historyHook $Start $End | Out-Null
+        & $bashPath --login -c 'cd "$1" && sh "$2" "$3" "$4"' efguard-history-gate $WorkingDirectory $historyHook $Start $End | Out-Null
         $status = $LASTEXITCODE
-    }
-    finally {
-        Pop-Location
-    }
     return [int]$status
 }
 
