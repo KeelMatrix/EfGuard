@@ -30,9 +30,18 @@ function Invoke-CommitMessageHook([string] $Path, [string] $Message) {
 }
 
 function Invoke-HistoryHook([string] $WorkingDirectory, [string] $Start, [string] $End) {
+    $shellCommand = Get-Command sh -ErrorAction SilentlyContinue
+    $shellPath = if ($shellCommand) { $shellCommand.Source } else { Join-Path (Split-Path $bashPath) "sh.exe" }
+    if (-not (Test-Path -LiteralPath $shellPath)) { throw "Could not locate the POSIX shell for the history hook." }
+    Push-Location $WorkingDirectory
+    try {
         $historyHook = Join-Path $repositoryRoot ".githooks/check-history"
-        & $bashPath --login -c 'cd "$1" && sh "$2" "$3" "$4"' efguard-history-gate $WorkingDirectory $historyHook $Start $End | Out-Null
+        & $shellPath $historyHook $Start $End | Out-Null
         $status = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
     return [int]$status
 }
 
